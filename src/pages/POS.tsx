@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode, Camera } from 'lucide-react';
 import { normalizeArabic } from '../utils/textUtils';
 
 
@@ -32,6 +32,10 @@ export default function POS() {
   const [lastOrderDetails, setLastOrderDetails] = useState<any>(null);
   const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
   const [checkoutShouldPrint, setCheckoutShouldPrint] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [cameraScanError, setCameraScanError] = useState('');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const lastCameraScanRef = useRef({ barcode: '', time: 0 });
 
   useEffect(() => {
     if (isDarkMode) {
@@ -397,6 +401,72 @@ ${customerBlock}
     return () => window.clearTimeout(timer);
   }, [barcodeScanInput, products]);
 
+  useEffect(() => {
+    if (!showCameraScanner) return;
+
+    let stream: MediaStream | null = null;
+    let frameId = 0;
+    let stopped = false;
+
+    const startCameraScan = async () => {
+      setCameraScanError('');
+      const BarcodeDetectorCtor = (window as any).BarcodeDetector;
+
+      if (!navigator.mediaDevices?.getUserMedia || !BarcodeDetectorCtor) {
+        setCameraScanError('المتصفح لا يدعم scan بالكاميرا. استخدم Chrome على Android أو اكتب الباركود يدويًا.');
+        return;
+      }
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+
+        if (!videoRef.current || stopped) return;
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+
+        const detector = new BarcodeDetectorCtor({
+          formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code']
+        });
+
+        const detect = async () => {
+          if (stopped || !videoRef.current) return;
+
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const barcode = codes?.[0]?.rawValue?.trim();
+            const now = Date.now();
+
+            if (barcode && (lastCameraScanRef.current.barcode !== barcode || now - lastCameraScanRef.current.time > 1200)) {
+              lastCameraScanRef.current = { barcode, time: now };
+              setBarcodeScanInput(barcode);
+              handleBarcodeSaleScan(barcode);
+            }
+          } catch {
+            // Keep scanning; transient camera frames can fail on some mobile browsers.
+          }
+
+          frameId = window.requestAnimationFrame(detect);
+        };
+
+        detect();
+      } catch {
+        setCameraScanError('لم أستطع فتح الكاميرا. تأكد من السماح للمتصفح باستخدام الكاميرا.');
+      }
+    };
+
+    startCameraScan();
+
+    return () => {
+      stopped = true;
+      if (frameId) window.cancelAnimationFrame(frameId);
+      stream?.getTracks().forEach((track) => track.stop());
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+  }, [showCameraScanner, products]);
+
   const subtotal = cart.reduce((sum, item) => sum + item.sale_price * item.quantity, 0);
   const discount = Math.min(parseFloat(discountStr) || 0, subtotal);
   const discountedSubtotal = subtotal - discount;
@@ -451,7 +521,7 @@ ${customerBlock}
 
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300 overflow-hidden font-sans text-gray-900 dark:text-gray-100">
+    <div className="flex flex-col lg:flex-row min-h-screen lg:h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300 overflow-y-auto lg:overflow-hidden font-sans text-gray-900 dark:text-gray-100">
       
       {/* SUCCESS MODAL */}
       {showSuccessModal && (
@@ -527,10 +597,10 @@ ${customerBlock}
       
       {/* PAYMENT METHOD MODAL */}
       {isPaymentMethodModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white dark:bg-slate-800 rounded-[40px] shadow-2xl w-full max-w-lg overflow-hidden border border-gray-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
-            <div className="p-6 bg-gradient-to-l from-indigo-600 to-purple-600 text-white flex justify-between items-center">
-              <h2 className="text-xl font-bold flex items-center gap-2">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4" dir="rtl">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl sm:rounded-[40px] shadow-2xl w-full max-w-lg max-h-[calc(100dvh-1rem)] overflow-hidden border border-gray-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+            <div className="p-4 sm:p-6 bg-gradient-to-l from-indigo-600 to-purple-600 text-white flex justify-between items-center">
+              <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                 <Banknote size={24} /> اختر طريقة الدفع
               </h2>
               <button 
@@ -541,18 +611,18 @@ ${customerBlock}
               </button>
             </div>
             
-            <div className="p-8 flex flex-col gap-6">
+            <div className="p-4 sm:p-8 flex flex-col gap-4 sm:gap-6 overflow-y-auto">
               <p className="text-slate-500 dark:text-slate-400 text-center font-bold text-base">
                 الرجاء اختيار طريقة استلام أو سداد قيمة الفاتورة:
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <button
                   onClick={async () => {
                     setIsPaymentMethodModalOpen(false);
                     await doCheckout(checkoutShouldPrint, 'cash');
                   }}
-                  className="p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
+                  className="p-4 sm:p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
                 >
                   <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center transition group-hover:scale-110">
                     <Banknote size={32} />
@@ -565,7 +635,7 @@ ${customerBlock}
                     setIsPaymentMethodModalOpen(false);
                     await doCheckout(checkoutShouldPrint, 'visa');
                   }}
-                  className="p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
+                  className="p-4 sm:p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
                 >
                   <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center transition group-hover:scale-110">
                     <CreditCard size={32} />
@@ -578,7 +648,7 @@ ${customerBlock}
                     setIsPaymentMethodModalOpen(false);
                     await doCheckout(checkoutShouldPrint, 'wallet');
                   }}
-                  className="p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
+                  className="p-4 sm:p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
                 >
                   <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center transition group-hover:scale-110">
                     <Smartphone size={32} />
@@ -591,7 +661,7 @@ ${customerBlock}
                     setIsPaymentMethodModalOpen(false);
                     await doCheckout(checkoutShouldPrint, 'instapay');
                   }}
-                  className="p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
+                  className="p-4 sm:p-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700/50 dark:hover:bg-slate-700 rounded-3xl border border-slate-200/60 dark:border-slate-600 flex flex-col items-center justify-center gap-3 transition group hover:shadow-lg"
                 >
                   <div className="w-14 h-14 bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 rounded-2xl flex items-center justify-center transition group-hover:scale-110">
                     <Zap size={32} />
@@ -801,10 +871,44 @@ ${customerBlock}
         </div>
       )}
 
+      {showCameraScanner && (
+        <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-md flex items-center justify-center p-3" dir="rtl">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+            <div className="p-4 flex items-center justify-between bg-slate-950 text-white">
+              <div className="flex items-center gap-2 font-black">
+                <Camera size={20} /> Scan barcode
+              </div>
+              <button
+                onClick={() => setShowCameraScanner(false)}
+                className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="relative overflow-hidden rounded-2xl bg-black aspect-[4/5] border border-slate-200 dark:border-slate-700">
+                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                <div className="absolute inset-x-8 top-1/2 h-0.5 bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.9)]" />
+                <div className="absolute inset-8 border-2 border-white/80 rounded-2xl pointer-events-none" />
+              </div>
+              {cameraScanError ? (
+                <div className="rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/40 p-3 text-sm font-bold text-red-600 dark:text-red-300">
+                  {cameraScanError}
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40 p-3 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                  وجه الكاميرا على الباركود، والمنتج هيتضاف تلقائيًا للفاتورة.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full bg-white dark:bg-slate-900 shadow-2xl z-10 w-2/3">
-        <header className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
-          <div className="flex items-center gap-4">
+      <div className="flex-1 flex flex-col min-h-[58vh] lg:h-full bg-white dark:bg-slate-900 shadow-2xl z-10 w-full lg:w-2/3">
+        <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 p-3 sm:p-5 border-b border-gray-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-30 lg:static">
+          <div className="flex items-center gap-3 sm:gap-4">
             <img src={storeSettings.logo} alt="Logo" className="w-12 h-12 object-cover rounded-xl shadow-md border border-gray-100 dark:border-slate-700 bg-white p-1" />
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
@@ -836,7 +940,7 @@ ${customerBlock}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-1 max-w-2xl ml-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:flex-1 lg:max-w-2xl lg:ml-6">
             <div className="relative flex-1">
               <Search className="absolute right-4 top-3.5 text-gray-400" size={20} />
               <input
@@ -849,7 +953,7 @@ ${customerBlock}
               />
             </div>
             <div
-              className="relative w-64 group"
+              className="relative w-full sm:w-72 lg:w-64 group"
               style={{
                 '--scan-color': storeSettings.themeColor,
                 '--scan-soft': storeSettings.themeColor + '14',
@@ -873,10 +977,18 @@ ${customerBlock}
                 <button
                   type="button"
                   onClick={() => handleBarcodeSaleScan()}
-                  className="h-7 px-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black tracking-wide shadow-sm hover:scale-105 transition"
+                  className="hidden sm:inline-flex h-7 px-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black tracking-wide shadow-sm hover:scale-105 transition items-center"
                   title="إضافة المنتج بالباركود"
                 >
                   Enter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCameraScanner(true)}
+                  className="sm:hidden w-8 h-8 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-sm"
+                  title="Scan بالكاميرا"
+                >
+                  <Camera size={16} />
                 </button>
               </div>
               <div className="absolute -top-2.5 right-5 z-20 px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-[var(--scan-border)] text-[9px] font-black text-[var(--scan-color)] tracking-[0.16em]">
@@ -894,24 +1006,24 @@ ${customerBlock}
                   }
                 }}
                 placeholder="قارئ الباركود..."
-                className="w-full h-[58px] bg-white dark:bg-slate-800 dark:text-white border-2 border-[var(--scan-border)] rounded-[22px] py-3 pr-14 pl-20 text-sm font-mono text-left focus:outline-none focus:ring-4 focus:ring-[var(--scan-soft)] shadow-[0_10px_30px_rgba(15,23,42,0.08)] transition placeholder:text-slate-400"
+                className="w-full h-[58px] bg-white dark:bg-slate-800 dark:text-white border-2 border-[var(--scan-border)] rounded-[22px] py-3 pr-14 pl-16 sm:pl-20 text-sm font-mono text-left focus:outline-none focus:ring-4 focus:ring-[var(--scan-soft)] shadow-[0_10px_30px_rgba(15,23,42,0.08)] transition placeholder:text-slate-400"
               />
             </div>
-            <button onClick={() => setShowReturnsModal(true)} className="flex items-center gap-2 px-5 py-3.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 rounded-2xl font-bold transition border border-red-100 dark:border-red-900/30 whitespace-nowrap shadow-sm">
+            <button onClick={() => setShowReturnsModal(true)} className="flex items-center justify-center gap-2 px-5 py-3.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 rounded-2xl font-bold transition border border-red-100 dark:border-red-900/30 whitespace-nowrap shadow-sm">
               <RefreshCcw size={18} /> مرتجع
             </button>
-            <button onClick={toggleTheme} className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700 transition shadow-sm">
+            <button onClick={toggleTheme} className="hidden sm:flex p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700 transition shadow-sm">
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </div>
         </header>
 
         {/* Categories Tabs */}
-        <div className="flex gap-3 p-5 overflow-x-auto border-b border-gray-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 hide-scrollbar items-center">
+        <div className="flex gap-2 sm:gap-3 p-3 sm:p-5 overflow-x-auto border-b border-gray-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 hide-scrollbar items-center">
           <button
             onClick={() => setActiveCategory('all')}
             style={activeCategory === 'all' ? { background: storeSettings.themeColor } : {}}
-            className={`px-6 py-2.5 rounded-2xl whitespace-nowrap font-bold transition shadow-sm border ${
+            className={`px-4 sm:px-6 py-2.5 rounded-2xl whitespace-nowrap font-bold transition shadow-sm border ${
               activeCategory === 'all' 
               ? 'text-white border-transparent' 
               : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
@@ -924,7 +1036,7 @@ ${customerBlock}
               key={c.id}
               onClick={() => setActiveCategory(c.id)}
               style={activeCategory === c.id ? { background: storeSettings.themeColor } : {}}
-              className={`px-6 py-2.5 rounded-2xl whitespace-nowrap font-bold transition shadow-sm border ${
+              className={`px-4 sm:px-6 py-2.5 rounded-2xl whitespace-nowrap font-bold transition shadow-sm border ${
                 activeCategory === c.id 
                 ? 'text-white border-transparent' 
                 : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
@@ -936,8 +1048,8 @@ ${customerBlock}
         </div>
 
         {/* Product Catalog Grid */}
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-900 border-l border-gray-100 dark:border-slate-800 relative">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-50/50 dark:bg-slate-900 border-l border-gray-100 dark:border-slate-800 relative">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {filteredProducts.map((product) => {
               const isOutOfStock = product.stock_quantity <= 0;
               const isLowStock = product.stock_quantity > 0 && product.stock_quantity < 5;
@@ -946,19 +1058,19 @@ ${customerBlock}
                 <div
                   key={product.id}
                   onClick={() => addToCart(product)}
-                  className={`bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm hover:shadow-xl cursor-pointer transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between h-48 border border-gray-100 dark:border-slate-700 ring-1 ring-black/5 dark:ring-white/5 relative overflow-hidden group ${isOutOfStock ? 'opacity-60 cursor-not-allowed grayscale' : ''}`}
+                  className={`bg-white dark:bg-slate-800 p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm hover:shadow-xl cursor-pointer transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between h-40 sm:h-48 border border-gray-100 dark:border-slate-700 ring-1 ring-black/5 dark:ring-white/5 relative overflow-hidden group ${isOutOfStock ? 'opacity-60 cursor-not-allowed grayscale' : ''}`}
                 >
-                  <div className={`absolute top-0 right-0 rounded-bl-3xl rounded-tr-xl px-4 py-1.5 text-xs font-bold text-white shadow-sm transition-colors ${isOutOfStock ? 'bg-slate-500' : isLowStock ? 'bg-red-500' : 'bg-green-500 dark:bg-green-600 group-hover:bg-green-600'}`}>
+                  <div className={`absolute top-0 right-0 rounded-bl-2xl sm:rounded-bl-3xl rounded-tr-xl px-2.5 sm:px-4 py-1 sm:py-1.5 text-[10px] sm:text-xs font-bold text-white shadow-sm transition-colors ${isOutOfStock ? 'bg-slate-500' : isLowStock ? 'bg-red-500' : 'bg-green-500 dark:bg-green-600 group-hover:bg-green-600'}`}>
                     {isOutOfStock ? 'نفذت الكمية' : `المخزون: ${product.stock_quantity}`}
                   </div>
 
                   <div className="pt-3">
-                    <h3 className="font-bold text-gray-800 dark:text-gray-100 line-clamp-2 leading-tight text-lg">{product.name}</h3>
+                    <h3 className="font-bold text-gray-800 dark:text-gray-100 line-clamp-2 leading-tight text-sm sm:text-lg">{product.name}</h3>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 font-mono">{product.barcode}</p>
                   </div>
                   <div className="flex items-end justify-between mt-4">
-                    <span style={{ color: storeSettings.themeColor }} className="text-xl font-black dark:opacity-90">{product.sale_price} <span className="text-sm text-gray-500 dark:text-gray-400">{storeSettings.currency}</span></span>
-                    <div style={!isOutOfStock ? { backgroundColor: storeSettings.themeColor + '15', color: storeSettings.themeColor, borderColor: storeSettings.themeColor + '30' } : {}} className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-all ${isOutOfStock ? 'bg-gray-100 text-gray-400 border-gray-200 dark:bg-slate-700 dark:border-slate-600' : ''}`}>
+                    <span style={{ color: storeSettings.themeColor }} className="text-base sm:text-xl font-black dark:opacity-90">{product.sale_price} <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{storeSettings.currency}</span></span>
+                    <div style={!isOutOfStock ? { backgroundColor: storeSettings.themeColor + '15', color: storeSettings.themeColor, borderColor: storeSettings.themeColor + '30' } : {}} className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center border transition-all ${isOutOfStock ? 'bg-gray-100 text-gray-400 border-gray-200 dark:bg-slate-700 dark:border-slate-600' : ''}`}>
                       <Plus size={20} strokeWidth={3}/>
                     </div>
                   </div>
@@ -970,13 +1082,13 @@ ${customerBlock}
       </div>
 
       {/* Cart Sidebar */}
-      <div className="w-1/3 min-w-[420px] bg-white dark:bg-slate-800 flex flex-col z-20 shadow-2xl relative border-r border-gray-100 dark:border-slate-800">
+      <div className="w-full lg:w-1/3 lg:min-w-[420px] bg-white dark:bg-slate-800 flex flex-col z-20 shadow-2xl relative border-r border-gray-100 dark:border-slate-800">
         <div
           style={{ 
             background: `linear-gradient(160deg, ${storeSettings.themeColor} 0%, ${storeSettings.themeColor}dd 100%)`,
             boxShadow: `0 8px 32px ${storeSettings.themeColor}66`
           }}
-          className="p-4 text-white flex flex-col relative h-auto rounded-bl-[40px] gap-3"
+          className="p-3 sm:p-4 text-white flex flex-col relative h-auto lg:rounded-bl-[40px] gap-3"
 
         >
           <div className="absolute inset-0 bg-black/20"></div>
@@ -994,7 +1106,7 @@ ${customerBlock}
               </div>
             </div>
           </div>
-          <div className="relative flex gap-3 text-sm">
+          <div className="relative flex flex-col sm:flex-row gap-2 sm:gap-3 text-sm">
             <div className="flex-1">
               <input 
                 type="text" 
@@ -1048,19 +1160,19 @@ ${customerBlock}
         </div>
 
         {/* Cart Listing */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50 dark:bg-slate-900/50" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex-1 overflow-y-auto max-h-[45vh] lg:max-h-none p-3 sm:p-5 space-y-3 sm:space-y-4 bg-slate-50 dark:bg-slate-900/50" style={{ scrollbarWidth: 'thin' }}>
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 transition-opacity opacity-70">
-              <ShoppingCart size={90} className="mb-6 opacity-30 drop-shadow-md" />
-              <p className="text-2xl font-semibold">السلة فارغة</p>
+              <ShoppingCart size={72} className="mb-4 sm:mb-6 opacity-30 drop-shadow-md" />
+              <p className="text-xl sm:text-2xl font-semibold">السلة فارغة</p>
               <p className="text-sm mt-2 opacity-70">أضف بعض المنتجات للبدء بحساب الفاتورة.</p>
             </div>
           ) : (
             cart.map((item) => (
-              <div key={item.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-3 relative overflow-hidden group hover:shadow-md transition-shadow">
+              <div key={item.id} className="bg-white dark:bg-slate-800 p-3 sm:p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col gap-3 relative overflow-hidden group hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start">
                   <h4 className="font-bold text-gray-800 dark:text-gray-100 leading-tight w-4/5 text-base">{item.name}</h4>
-                  <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 dark:text-red-500 transition-colors bg-red-50 dark:bg-red-900/20 p-2.5 rounded-xl opacity-0 group-hover:opacity-100 absolute left-4 top-4 border border-transparent hover:border-red-100 dark:hover:border-red-900/50">
+                  <button onClick={() => removeFromCart(item.id)} className="text-red-400 hover:text-red-600 dark:text-red-500 transition-colors bg-red-50 dark:bg-red-900/20 p-2.5 rounded-xl sm:opacity-0 sm:group-hover:opacity-100 absolute left-3 sm:left-4 top-3 sm:top-4 border border-transparent hover:border-red-100 dark:hover:border-red-900/50">
                     <Trash2 size={18} />
                   </button>
                 </div>
@@ -1099,8 +1211,8 @@ ${customerBlock}
 
 
         {/* Footer Checkout */}
-        <div className="p-6 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 z-10">
-          <div className="space-y-3 mb-4 bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-gray-100 dark:border-slate-700">
+        <div className="p-3 sm:p-6 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 z-10">
+          <div className="space-y-3 mb-4 bg-slate-50 dark:bg-slate-900/50 p-3 sm:p-5 rounded-2xl border border-gray-100 dark:border-slate-700">
             <div className="flex justify-between text-gray-500 dark:text-gray-400 font-semibold text-sm">
                <span>المجموع الفرعي</span>
               <span>{subtotal.toFixed(2)} {storeSettings.currency}</span>
@@ -1131,14 +1243,14 @@ ${customerBlock}
                 <span>{tax.toFixed(2)} {storeSettings.currency}</span>
               </div>
             )}
-            <div className="flex justify-between text-3xl font-black text-gray-800 dark:text-gray-100 pt-2 border-b border-gray-200 dark:border-slate-700 pb-4">
+            <div className="flex justify-between text-2xl sm:text-3xl font-black text-gray-800 dark:text-gray-100 pt-2 border-b border-gray-200 dark:border-slate-700 pb-4">
               <span>الإجمالي</span>
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
                 {total.toFixed(2)} <span className="text-lg text-gray-500 dark:text-gray-400 font-bold">{storeSettings.currency}</span>
               </span>
             </div>
             
-            <div className="flex gap-4 items-center justify-between pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center justify-between pt-2">
               <div className="flex-1">
                 <label className="text-xs text-slate-500 mb-1 block font-bold">المدفوع</label>
                 <input 
@@ -1160,7 +1272,7 @@ ${customerBlock}
           </div>
 
           <div className="flex flex-col gap-3">
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button
                 onClick={() => {
                   setCheckoutShouldPrint(false);
