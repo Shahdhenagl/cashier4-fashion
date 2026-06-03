@@ -160,7 +160,7 @@ export default function Customers() {
     <div class="total-row grand-total"><span>الإجمالي:</span><span>${order.total.toFixed(2)}</span></div>
     <div class="total-row"><span>المدفوع:</span><span>${order.paid_amount.toFixed(2)}</span></div>
   </div>
-  <div class="footer">شكراً لزيارتكم</div>
+  <div class="footer">مع موفاسا الموضة مش غالية</div>
   <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
 </body></html>`;
 

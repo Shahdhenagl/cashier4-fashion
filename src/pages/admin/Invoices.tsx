@@ -176,7 +176,7 @@ export default function Invoices() {
       ` : ''}
     `}
   </div>
-  <div class="footer">شكراً لتعاملكم ♥</div>
+  <div class="footer">مع موفاسا الموضة مش غالية</div>
   <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
 </body></html>`;
 

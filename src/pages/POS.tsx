@@ -246,7 +246,7 @@ ${customerBlock}
     </div>
   ` : ''}
 </div>
-<div class="footer">شكراً لتعاملكم ♥</div>
+<div class="footer">مع موفاسا الموضة مش غالية</div>
 <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
 </body></html>`;
 
@@ -394,7 +394,7 @@ ${customerBlock}
                             `*تفاصيل الطلب:*\n${itemsText}\n\n` +
                             `${storeSettings.address ? `📍 *العنوان:* ${storeSettings.address}\n` : ''}` +
                             `${storeSettings.phone ? `📞 *للتواصل:* ${storeSettings.phone}\n` : ''}` +
-                            `\n*شكراً لتعاملكم معنا، في انتظاركم مرة أخرى!* ❤️\n` +
+                            `\n*مع موفاسا الموضة مش غالية*\n` +
                             `*ما رأيك في خدمتنا؟ نسعد بتلقي ملاحظاتك.*`;
                           let cleanPhone = customerPhone.replace(/\D/g, '');
                           const code = storeSettings.whatsappCountryCode || '2';
