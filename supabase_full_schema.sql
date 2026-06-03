@@ -80,6 +80,7 @@ create table if not exists order_items (
 );
 
 alter table order_items add column if not exists purchase_price numeric default 0;
+alter table order_items add column if not exists return_cash_amount numeric default 0;
 
 create table if not exists expenses (
   id uuid primary key default gen_random_uuid(),

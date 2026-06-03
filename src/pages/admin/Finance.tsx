@@ -36,6 +36,14 @@ export default function Finance() {
 
   // Helper to get date string without time
   const getDateStr = (date: string | Date) => new Date(date).toISOString().split('T')[0];
+  const getOrderReturnCash = (order: Order) => {
+    const itemsSum = order.items.reduce((sum, item) => sum + (item.quantity * item.sale_price), 0);
+    const discountRatio = itemsSum > 0 ? order.total / itemsSum : 1;
+    return order.items.reduce((sum, item) => {
+      const savedCash = item.return_cash_amount ?? 0;
+      return sum + (savedCash > 0 ? savedCash : item.returned_quantity * item.sale_price * discountRatio);
+    }, 0);
+  };
 
   // 1. Transactions before selected date (for Opening Balance)
   const totalsBefore = useMemo(() => {
@@ -57,7 +65,7 @@ export default function Finance() {
     
     const returnsOut = orders
       .filter(o => o.type !== 'previous_debt' && new Date(o.date) < selDate)
-      .reduce((sum, o) => sum + o.items.reduce((iSum, item) => iSum + (item.returned_quantity * item.sale_price), 0), 0);
+      .reduce((sum, o) => sum + getOrderReturnCash(o), 0);
 
     const expensesOut = expenses
       .filter(e => new Date(e.date) < selDate)
@@ -102,7 +110,7 @@ export default function Finance() {
   const dailyExpensesTotal = periodTransactions.expenses.reduce((sum, e) => sum + e.amount, 0);
   const dailyPurchasesTotal = periodTransactions.purchases.reduce((sum, inv) => sum + inv.paid_amount, 0);
   const dailyReturnsValue = periodTransactions.orders.reduce((sum, o) => {
-    return sum + o.items.reduce((iSum, item) => iSum + (item.returned_quantity * item.sale_price), 0);
+    return sum + getOrderReturnCash(o);
   }, 0);
 
   const dailyNet = dailyIncome - dailyExpensesTotal - dailyPurchasesTotal - dailyReturnsValue;
@@ -117,9 +125,7 @@ export default function Finance() {
     
     // Returns are always refunded in CASH, so we only deduct them from cash balance
     const outRet = method === 'cash' ? periodTransactions.orders.reduce((sum, o) => {
-      const itemsSum = o.items.reduce((s, i) => s + (i.quantity * i.sale_price), 0);
-      const discountRatio = itemsSum > 0 ? o.total / itemsSum : 1;
-      return sum + (o.items.reduce((iSum, item) => iSum + (item.returned_quantity * item.sale_price), 0) * discountRatio);
+      return sum + getOrderReturnCash(o);
     }, 0) : 0;
 
     return inc - outExp - outPur - outRet;
@@ -152,9 +158,7 @@ export default function Finance() {
       });
 
       // Add return entry if any items were returned in this order
-      const itemsSum = o.items.reduce((s, i) => s + (i.quantity * i.sale_price), 0);
-      const discountRatio = itemsSum > 0 ? o.total / itemsSum : 1;
-      const returnedVal = o.items.reduce((s, i) => s + (i.returned_quantity * i.sale_price), 0) * discountRatio;
+      const returnedVal = getOrderReturnCash(o);
       
       if (returnedVal > 0) {
         list.push({

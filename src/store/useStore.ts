@@ -20,6 +20,7 @@ export interface Category {
 export interface OrderItem extends Product {
   quantity: number;
   returned_quantity: number;
+  return_cash_amount?: number;
 }
 
 export interface Customer {
@@ -145,7 +146,7 @@ interface CashierStore {
     paymentMethod?: 'cash' | 'visa' | 'wallet' | 'instapay',
     splitPayments?: { cash: number; visa: number; wallet: number; instapay: number }
   ) => Promise<string>;
-  processReturn: (orderId: string, productId: string, returnQty: number) => Promise<boolean>;
+  processReturn: (orderId: string, productId: string, returnQty: number, cashRefundAmount?: number) => Promise<boolean>;
 
   // Admin
   loadAnalyticsData: (startDate?: string, endDate?: string) => Promise<Order[]>;
@@ -262,6 +263,7 @@ export const useStore = create<CashierStore>((set, get) => ({
             category_id: (prod.category_id as string) ?? '',
             quantity: i.quantity as number,
             returned_quantity: (i.returned_quantity as number) ?? 0,
+            return_cash_amount: (i.return_cash_amount as number) ?? 0,
           };
         });
         const paid_amt = (o.paid_amount as number) ?? (o.total as number);
@@ -473,6 +475,7 @@ export const useStore = create<CashierStore>((set, get) => ({
           barcode: item.barcode,
           quantity: item.quantity,
           returned_quantity: item.returned_quantity || 0,
+          return_cash_amount: item.return_cash_amount || 0,
           sale_price: item.sale_price,
           purchase_price: item.purchase_price || 0,
         }));
@@ -673,6 +676,7 @@ export const useStore = create<CashierStore>((set, get) => ({
         barcode: item.barcode,
         quantity: item.quantity,
         returned_quantity: 0,
+        return_cash_amount: 0,
         sale_price: item.sale_price,
       }));
       if (itemsPayload.length > 0) {
@@ -736,7 +740,7 @@ export const useStore = create<CashierStore>((set, get) => ({
   },
 
   // ── Returns ────────────────────────────────────────────────
-  processReturn: async (orderId, productId, returnQty) => {
+  processReturn: async (orderId, productId, returnQty, cashRefundAmount) => {
     const state = get();
     const orderIndex = state.orders.findIndex((o) => o.id === orderId);
     if (orderIndex === -1) return false;
@@ -750,10 +754,12 @@ export const useStore = create<CashierStore>((set, get) => ({
     if (returnQty <= 0 || returnQty > available) return false;
 
     const newReturnedQty = item.returned_quantity + returnQty;
+    const safeCashRefund = Math.max(0, cashRefundAmount ?? item.sale_price * returnQty);
+    const newReturnCashAmount = (item.return_cash_amount ?? 0) + safeCashRefund;
 
     const executeOfflineReturn = () => {
       const updatedItems = order.items.map((i, idx) =>
-        idx === itemIndex ? { ...i, returned_quantity: newReturnedQty } : i
+        idx === itemIndex ? { ...i, returned_quantity: newReturnedQty, return_cash_amount: newReturnCashAmount } : i
       );
       const updatedOrders = state.orders.map((o, idx) =>
         idx === orderIndex ? { ...o, items: updatedItems } : o
@@ -768,7 +774,7 @@ export const useStore = create<CashierStore>((set, get) => ({
             return {
               ...o,
               items: o.items.map((i: any) =>
-                i.id === productId ? { ...i, returned_quantity: newReturnedQty } : i
+                i.id === productId ? { ...i, returned_quantity: newReturnedQty, return_cash_amount: newReturnCashAmount } : i
               ),
             };
           }
@@ -785,6 +791,7 @@ export const useStore = create<CashierStore>((set, get) => ({
           orderId,
           productId,
           returnQty,
+          cashRefundAmount: safeCashRefund,
           date: new Date().toISOString(),
         };
         const updatedReturnsQueue = [...state.offlineReturnsQueue, newOfflineReturn];
@@ -807,7 +814,7 @@ export const useStore = create<CashierStore>((set, get) => ({
 
       const orderItemRow = await supabase
         .from('order_items')
-        .select('id, returned_quantity')
+        .select('id, returned_quantity, return_cash_amount')
         .eq('order_id', orderId)
         .eq('product_id', productId)
         .single();
@@ -819,7 +826,7 @@ export const useStore = create<CashierStore>((set, get) => ({
       if (orderItemRow.data) {
         const { error: updateError } = await supabase
           .from('order_items')
-          .update({ returned_quantity: newReturnedQty })
+          .update({ returned_quantity: newReturnedQty, return_cash_amount: newReturnCashAmount })
           .eq('id', (orderItemRow.data as Record<string, unknown>).id as string);
         if (updateError) throw updateError;
       }
@@ -834,7 +841,7 @@ export const useStore = create<CashierStore>((set, get) => ({
       }
 
       const updatedItems = order.items.map((i, idx) =>
-        idx === itemIndex ? { ...i, returned_quantity: newReturnedQty } : i
+        idx === itemIndex ? { ...i, returned_quantity: newReturnedQty, return_cash_amount: newReturnCashAmount } : i
       );
       const updatedOrders = state.orders.map((o, idx) =>
         idx === orderIndex ? { ...o, items: updatedItems } : o
@@ -865,7 +872,7 @@ export const useStore = create<CashierStore>((set, get) => ({
       try {
         const orderItemRow = await supabase
           .from('order_items')
-          .select('id, returned_quantity')
+          .select('id, returned_quantity, return_cash_amount')
           .eq('order_id', returnItem.orderId)
           .eq('product_id', returnItem.productId)
           .single();
@@ -874,9 +881,13 @@ export const useStore = create<CashierStore>((set, get) => ({
 
         if (orderItemRow.data) {
           const currentReturned = (orderItemRow.data as any).returned_quantity || 0;
+          const currentReturnCash = (orderItemRow.data as any).return_cash_amount || 0;
           const { error: updateError } = await supabase
             .from('order_items')
-            .update({ returned_quantity: currentReturned + returnItem.returnQty })
+            .update({
+              returned_quantity: currentReturned + returnItem.returnQty,
+              return_cash_amount: currentReturnCash + (returnItem.cashRefundAmount ?? 0)
+            })
             .eq('id', (orderItemRow.data as any).id);
           if (updateError) throw updateError;
         }
@@ -943,6 +954,7 @@ export const useStore = create<CashierStore>((set, get) => ({
           category_id: (prod.category_id as string) ?? '',
           quantity: i.quantity as number,
           returned_quantity: (i.returned_quantity as number) ?? 0,
+          return_cash_amount: (i.return_cash_amount as number) ?? 0,
         };
       });
       const paid_amt = (o.paid_amount as number) ?? (o.total as number);

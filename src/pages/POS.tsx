@@ -23,6 +23,8 @@ export default function POS() {
   const [showReturnsModal, setShowReturnsModal] = useState(false);
   const [returnSearchQuery, setReturnSearchQuery] = useState('');
   const [activeReturnOrder, setActiveReturnOrder] = useState<any>(null);
+  const [returnQuantities, setReturnQuantities] = useState<Record<string, string>>({});
+  const [returnCashAmounts, setReturnCashAmounts] = useState<Record<string, string>>({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastInvoiceId, setLastInvoiceId] = useState('');
   const [lastCustomerInfo, setLastCustomerInfo] = useState<any>(null);
@@ -72,22 +74,39 @@ export default function POS() {
     const order = orders.find(o => o.id.toLowerCase() === returnSearchQuery.toLowerCase());
     if (order) {
       setActiveReturnOrder(order);
+      setReturnQuantities({});
+      setReturnCashAmounts({});
     } else {
       alert("لم يتم العثور على فاتورة بهذا الرقم");
       setActiveReturnOrder(null);
+      setReturnQuantities({});
+      setReturnCashAmounts({});
     }
   };
 
   const handleReturnItem = async (productId: string) => {
     if (activeReturnOrder) {
-      const qs = prompt("أدخل الكمية المراد استرجاعها:");
-      const qty = parseInt(qs || '0', 10);
+      const item = activeReturnOrder.items.find((i: any) => i.id === productId);
+      const available = item ? item.quantity - item.returned_quantity : 0;
+      const qty = parseInt(returnQuantities[productId] || '1', 10);
       if (!isNaN(qty) && qty > 0) {
-        const success = await processReturn(activeReturnOrder.id, productId, qty);
+        if (qty > available) {
+          alert("الكمية أكبر من المتاح للإرجاع");
+          return;
+        }
+        const invoiceItemsTotal = activeReturnOrder.items.reduce((sum: number, i: any) => sum + (i.quantity * i.sale_price), 0);
+        const discountRatio = invoiceItemsTotal > 0 ? activeReturnOrder.total / invoiceItemsTotal : 1;
+        const defaultCashRefund = item ? item.sale_price * qty * discountRatio : 0;
+        const cashRefund = returnCashAmounts[productId] !== undefined
+          ? parseFloat(returnCashAmounts[productId] || '0') || 0
+          : defaultCashRefund;
+        const success = await processReturn(activeReturnOrder.id, productId, qty, cashRefund);
         if (success) {
           alert('تم استرجاع المنتجات بنجاح وإعادتها للمخزون');
           const updatedOrder = useStore.getState().orders.find(o => o.id === activeReturnOrder.id);
           setActiveReturnOrder(updatedOrder);
+          setReturnQuantities((prev) => ({ ...prev, [productId]: '' }));
+          setReturnCashAmounts((prev) => ({ ...prev, [productId]: '' }));
         } else {
           alert("الكمية غير صحيحة أو تم استرجاعها مسبقاً بالكامل");
         }
@@ -534,7 +553,13 @@ ${customerBlock}
 
               {activeReturnOrder && (() => {
                 const initialDebt = Math.max(0, activeReturnOrder.total - activeReturnOrder.paid_amount);
-                const totalReturnedValue = activeReturnOrder.items.reduce((sum: number, item: any) => sum + (item.returned_quantity * item.sale_price), 0);
+                const invoiceItemsTotal = activeReturnOrder.items.reduce((sum: number, item: any) => sum + (item.quantity * item.sale_price), 0);
+                const discountAmount = Math.max(0, invoiceItemsTotal - activeReturnOrder.total);
+                const discountRatio = invoiceItemsTotal > 0 ? activeReturnOrder.total / invoiceItemsTotal : 1;
+                const totalReturnedValue = activeReturnOrder.items.reduce((sum: number, item: any) => {
+                  const savedCashRefund = item.return_cash_amount ?? 0;
+                  return sum + (savedCashRefund > 0 ? savedCashRefund : item.returned_quantity * item.sale_price * discountRatio);
+                }, 0);
                 const cashRefund = totalReturnedValue;
                 const debtReduction = 0;
                 
@@ -557,6 +582,17 @@ ${customerBlock}
                       <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">إجمالي المرتجع</span>
                         <span className="text-sm font-black text-orange-600 dark:text-orange-400">{totalReturnedValue.toFixed(2)} {storeSettings.currency}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="bg-white dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">إجمالي الأصناف قبل الخصم</span>
+                        <div className="font-black text-slate-800 dark:text-slate-100">{invoiceItemsTotal.toFixed(2)} {storeSettings.currency}</div>
+                      </div>
+                      <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-800/50 p-3">
+                        <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">خصم الفاتورة المحسوب</span>
+                        <div className="font-black text-orange-600">{discountAmount.toFixed(2)} {storeSettings.currency}</div>
                       </div>
                     </div>
 
@@ -590,19 +626,77 @@ ${customerBlock}
                         <span className="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600">رقم الفاتورة: #{activeReturnOrder.id}</span>
                       </div>
                       <div className="p-4 space-y-3 max-h-72 overflow-y-auto hide-scrollbar">
-                        {activeReturnOrder.items.map((item: any) => (
-                          <div key={item.id} className="flex justify-between items-center p-4 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-600 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                        {activeReturnOrder.items.map((item: any) => {
+                          const availableQty = item.quantity - item.returned_quantity;
+                          const selectedQty = Math.min(Math.max(parseInt(returnQuantities[item.id] || '1', 10) || 1, 1), Math.max(availableQty, 1));
+                          const grossReturn = item.sale_price * selectedQty;
+                          const itemDiscount = grossReturn * (1 - discountRatio);
+                          const netReturn = grossReturn - itemDiscount;
+                          const cashValue = returnCashAmounts[item.id] !== undefined ? returnCashAmounts[item.id] : netReturn.toFixed(2);
+                          return (
+                          <div key={item.id} className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-600 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start gap-3">
                             <div className="flex flex-col">
                               <span className="font-bold text-md text-gray-800 dark:text-gray-100">{item.name}</span>
                               <span className="text-sm text-gray-500 dark:text-gray-400 mt-1">الكمية المسجلة: {item.quantity} | المسترجع: <span className="text-red-500 font-bold">{item.returned_quantity}</span></span>
+                              <span className="text-xs text-slate-500 mt-1">سعر القطعة: <b>{item.sale_price.toFixed(2)}</b> {storeSettings.currency}</span>
                             </div>
                             <button 
                               disabled={item.quantity === item.returned_quantity}
                               onClick={() => handleReturnItem(item.id)} 
                               className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition border border-red-100 dark:border-red-900/50"
                             >إرجاع</button>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                              <div className="rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 p-2">
+                                <span className="block text-slate-500 font-bold mb-1">كمية الإرجاع</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={availableQty}
+                                  disabled={availableQty <= 0}
+                                  value={returnQuantities[item.id] ?? '1'}
+                                  onChange={(e) => {
+                                    const rawQty = e.target.value;
+                                    const qty = Math.min(Math.max(parseInt(rawQty || '0', 10) || 0, 0), availableQty);
+                                    const nextGross = item.sale_price * qty;
+                                    const nextNet = nextGross * discountRatio;
+                                    setReturnQuantities((prev) => ({ ...prev, [item.id]: rawQty }));
+                                    setReturnCashAmounts((prev) => ({ ...prev, [item.id]: nextNet.toFixed(2) }));
+                                  }}
+                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md px-2 py-1 font-black text-left"
+                                  dir="ltr"
+                                />
+                              </div>
+                              <div className="rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 p-2">
+                                <span className="block text-slate-500 font-bold mb-1">قبل الخصم</span>
+                                <b>{grossReturn.toFixed(2)}</b>
+                              </div>
+                              <div className="rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/50 p-2">
+                                <span className="block text-orange-600 font-bold mb-1">نصيب الخصم</span>
+                                <b>- {itemDiscount.toFixed(2)}</b>
+                              </div>
+                              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50 p-2">
+                                <span className="block text-emerald-700 dark:text-emerald-300 font-bold mb-1">الصافي</span>
+                                <b>{netReturn.toFixed(2)}</b>
+                              </div>
+                              <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 p-2">
+                                <span className="block text-blue-700 dark:text-blue-300 font-bold mb-1">الكاش المردود</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  disabled={availableQty <= 0}
+                                  value={cashValue}
+                                  onChange={(e) => setReturnCashAmounts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                  className="w-full bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 rounded-md px-2 py-1 font-black text-left"
+                                  dir="ltr"
+                                />
+                              </div>
+                            </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </>
