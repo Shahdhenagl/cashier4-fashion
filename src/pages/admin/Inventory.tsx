@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas';
 
 export default function Inventory() {
   const { products, categories, storeSettings, addProduct, deleteProduct, updateProduct } = useStore();
+  const [activeFilter, setActiveFilter] = useState<string | null>(null); // 'low' | 'out' | null
   const [searchQuery, setSearchQuery] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showCatForm, setShowCatForm] = useState(false);
@@ -22,7 +23,22 @@ export default function Inventory() {
     category_id: categories[0]?.id || ''
   });
 
-  const filteredProducts = products.filter(p => p.name.includes(searchQuery) || p.barcode.includes(searchQuery));
+  // Inventory metrics
+  const totalCostValue = products.reduce((s, p) => s + (p.purchase_price || 0) * (p.stock_quantity || 0), 0);
+  const totalSaleValue = products.reduce((s, p) => s + (p.sale_price || 0) * (p.stock_quantity || 0), 0);
+  const expectedProfit = products.reduce((s, p) => s + ((p.sale_price || 0) - (p.purchase_price || 0)) * (p.stock_quantity || 0), 0);
+  const totalPieces = products.reduce((s, p) => s + (p.stock_quantity || 0), 0);
+  const lowStockCount = products.filter(p => p.stock_quantity < 5 && p.stock_quantity > 0).length;
+  const outOfStockCount = products.filter(p => p.stock_quantity === 0).length;
+
+  // Apply search + active filter
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = searchQuery ? (p.name.includes(searchQuery) || p.barcode.includes(searchQuery)) : true;
+    if (!matchesSearch) return false;
+    if (activeFilter === 'low') return p.stock_quantity < 5 && p.stock_quantity > 0;
+    if (activeFilter === 'out') return p.stock_quantity === 0;
+    return true;
+  });
 
   const handleDelete = (id: string, name: string) => {
     if (confirm(`هل أنت متأكد من حذف المنتج: ${name}؟`)) {
@@ -247,6 +263,39 @@ export default function Inventory() {
           </div>
         </div>
       )}
+
+      {/* DASHBOARD METRIC CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div onClick={() => setActiveFilter(null)} className={`cursor-pointer bg-white rounded-2xl p-6 shadow-sm border ${!activeFilter ? 'ring-2 ring-opacity-20' : ''}`}>
+          <div className="text-slate-400 text-sm">إجمالي قيمة المخزون (سعر الشراء)</div>
+          <div className="text-2xl font-extrabold mt-2">{totalCostValue.toFixed(2)} {storeSettings.currency}</div>
+        </div>
+
+        <div onClick={() => setActiveFilter(null)} className="cursor-pointer bg-white rounded-2xl p-6 shadow-sm border">
+          <div className="text-slate-400 text-sm">إجمالي قيمة المخزون (سعر البيع)</div>
+          <div className="text-2xl font-extrabold mt-2">{totalSaleValue.toFixed(2)} {storeSettings.currency}</div>
+        </div>
+
+        <div onClick={() => setActiveFilter(null)} className="cursor-pointer bg-white rounded-2xl p-6 shadow-sm border">
+          <div className="text-slate-400 text-sm">المتوقع للربح</div>
+          <div className="text-2xl font-extrabold mt-2">{expectedProfit.toFixed(2)} {storeSettings.currency}</div>
+        </div>
+
+        <div onClick={() => setActiveFilter(null)} className="cursor-pointer bg-white rounded-2xl p-6 shadow-sm border">
+          <div className="text-slate-400 text-sm">إجمالي قطع في المخزون</div>
+          <div className="text-2xl font-extrabold mt-2">{totalPieces}</div>
+        </div>
+
+        <div onClick={() => setActiveFilter(prev => prev === 'low' ? null : 'low')} className={`cursor-pointer bg-white rounded-2xl p-6 shadow-sm border ${activeFilter === 'low' ? 'ring-2 ring-sky-400' : ''}`}>
+          <div className="text-slate-400 text-sm">المنتجات أوشكت على النفاذ (&lt;5)</div>
+          <div className="text-2xl font-extrabold mt-2">{lowStockCount} منتج</div>
+        </div>
+
+        <div onClick={() => setActiveFilter(prev => prev === 'out' ? null : 'out')} className={`cursor-pointer bg-white rounded-2xl p-6 shadow-sm border ${activeFilter === 'out' ? 'ring-2 ring-red-400' : ''}`}>
+          <div className="text-slate-400 text-sm">المنتجات نفذت من المخزون</div>
+          <div className="text-2xl font-extrabold mt-2">{outOfStockCount} منتج</div>
+        </div>
+      </div>
 
       {/* CATEGORIES SECTION */}
       <div className="mb-8">
