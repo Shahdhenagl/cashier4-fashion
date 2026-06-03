@@ -120,10 +120,15 @@ export default function Inventory() {
       }
     }
     
+    const productPayload = {
+      ...formData,
+      barcode: barcodeTrimmed
+    };
+
     if (editingProductId) {
-      updateProduct(editingProductId, { ...formData });
+      updateProduct(editingProductId, productPayload);
     } else {
-      addProduct({ ...formData });
+      addProduct(productPayload);
     }
     
     setShowAddModal(false);
@@ -192,7 +197,24 @@ export default function Inventory() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-bold text-slate-700 mb-1">الباركود</label>
-                  <input type="text" required dir="ltr" value={formData.barcode} onChange={e => setFormData({...formData, barcode: e.target.value})} style={{ '--tw-ring-color': storeSettings.themeColor + '40' } as any} className="w-full bg-slate-50 border border-slate-200 py-3 px-4 rounded-xl focus:ring-2 focus:outline-none text-left" />
+                  <input
+                    type="text"
+                    required
+                    dir="ltr"
+                    value={formData.barcode}
+                    onChange={e => setFormData({...formData, barcode: e.target.value})}
+                    onBlur={e => setFormData({...formData, barcode: e.target.value.trim()})}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        setFormData(prev => ({ ...prev, barcode: prev.barcode.trim() }));
+                      }
+                    }}
+                    placeholder="اكتب الباركود أو اعمله Scan هنا"
+                    style={{ '--tw-ring-color': storeSettings.themeColor + '40' } as any}
+                    className="w-full bg-slate-50 border border-slate-200 py-3 px-4 rounded-xl focus:ring-2 focus:outline-none text-left font-mono"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1 font-bold">ضع المؤشر في الخانة ثم استخدم قارئ الباركود، أو اكتب الرقم يدويًا.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-1">سعر الشراء</label>

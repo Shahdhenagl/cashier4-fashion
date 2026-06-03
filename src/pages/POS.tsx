@@ -9,6 +9,7 @@ export default function POS() {
   
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [barcodeScanInput, setBarcodeScanInput] = useState('');
   
   // Customer details for checkout
   const [customerPhone, setCustomerPhone] = useState('');
@@ -310,8 +311,31 @@ ${customerBlock}
   const filteredProducts = products.filter(
     (p) =>
       (activeCategory === 'all' || p.category_id === activeCategory) &&
-      p.name.includes(searchQuery)
+      (p.name.includes(searchQuery) || p.barcode.includes(searchQuery.trim()))
   );
+
+  const handleBarcodeSaleScan = (rawBarcode = barcodeScanInput) => {
+    const barcode = rawBarcode.trim();
+    if (!barcode) return;
+
+    const product = products.find((p) => p.barcode.trim() === barcode);
+    if (!product) {
+      alert(`لم يتم العثور على منتج بالباركود: ${barcode}`);
+      setBarcodeScanInput('');
+      return;
+    }
+
+    if (product.stock_quantity <= 0) {
+      alert(`المنتج "${product.name}" غير متوفر في المخزون.`);
+      setBarcodeScanInput('');
+      return;
+    }
+
+    addToCart(product);
+    setBarcodeScanInput('');
+    setSearchQuery('');
+    setActiveCategory('all');
+  };
 
   const subtotal = cart.reduce((sum, item) => sum + item.sale_price * item.quantity, 0);
   const discount = Math.min(parseFloat(discountStr) || 0, subtotal);
@@ -742,16 +766,33 @@ ${customerBlock}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4 flex-1 max-w-lg ml-6">
-            <div className="relative w-full">
+          <div className="flex items-center gap-3 flex-1 max-w-2xl ml-6">
+            <div className="relative flex-1">
               <Search className="absolute right-4 top-3.5 text-gray-400" size={20} />
               <input
                 type="text"
-                placeholder="ابحث باسم المنتج..."
+                placeholder="ابحث باسم المنتج أو الباركود..."
                 style={{ '--tw-ring-color': storeSettings.themeColor + '40' } as any}
                 className="w-full bg-slate-100 dark:bg-slate-800 dark:text-white border-none rounded-2xl py-3.5 pr-12 pl-4 text-sm focus:outline-none focus:ring-2 shadow-inner transition"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="relative w-52">
+              <input
+                type="text"
+                dir="ltr"
+                value={barcodeScanInput}
+                onChange={(e) => setBarcodeScanInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleBarcodeSaleScan();
+                  }
+                }}
+                placeholder="Scan barcode"
+                className="w-full bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl py-3.5 px-4 text-sm font-mono text-left focus:outline-none focus:ring-2 shadow-sm transition"
+                style={{ '--tw-ring-color': storeSettings.themeColor + '40' } as any}
               />
             </div>
             <button onClick={() => setShowReturnsModal(true)} className="flex items-center gap-2 px-5 py-3.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 rounded-2xl font-bold transition border border-red-100 dark:border-red-900/30 whitespace-nowrap shadow-sm">
