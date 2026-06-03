@@ -677,9 +677,9 @@ ${customerBlock}
       )}
       
       {showReturnsModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-2 sm:p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col border border-gray-200 dark:border-slate-700">
-            <div className="p-4 sm:p-6 bg-gradient-to-r from-red-500 to-orange-500 text-white flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-stretch sm:items-start justify-center overflow-hidden sm:overflow-y-auto p-0 sm:p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-3xl shadow-2xl w-full max-w-4xl h-[100svh] sm:h-auto sm:max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col border border-gray-200 dark:border-slate-700">
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-red-500 to-orange-500 text-white flex justify-between items-center shrink-0 sticky top-0 z-10">
               <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                 <ArrowRightLeft size={24} /> نظام المرتجعات
               </h2>
@@ -687,7 +687,7 @@ ${customerBlock}
                 <X size={24} />
               </button>
             </div>
-            <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
+            <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-4 pb-8">
               <div className="flex flex-col sm:flex-row gap-2">
                 <input 
                   type="text" 
@@ -770,7 +770,7 @@ ${customerBlock}
                       )}
                     </div>
 
-                    <div className="flex-1 min-h-0 border border-gray-200 dark:border-slate-700 flex flex-col rounded-xl overflow-hidden">
+                    <div className="border border-gray-200 dark:border-slate-700 flex flex-col rounded-xl overflow-hidden">
                       <div className="bg-gray-100 dark:bg-slate-700 p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center border-b border-gray-200 dark:border-slate-600">
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                           <span className="font-bold text-gray-700 dark:text-gray-200 font-mono tracking-wider">الأصناف المتاحة للإرجاع</span>
@@ -784,7 +784,7 @@ ${customerBlock}
                           إرجاع الفاتورة بالكامل
                         </button>
                       </div>
-                      <div className="p-3 sm:p-4 space-y-3 max-h-[42dvh] overflow-y-auto hide-scrollbar">
+                      <div className="p-3 sm:p-4 space-y-3 overflow-visible sm:max-h-[42vh] sm:overflow-y-auto hide-scrollbar">
                         {activeReturnOrder.items.map((item: any) => {
                           const availableQty = item.quantity - item.returned_quantity;
                           const selectedQty = Math.min(Math.max(parseInt(returnQuantities[item.id] || '1', 10) || 1, 1), Math.max(availableQty, 1));
