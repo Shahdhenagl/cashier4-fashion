@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
-import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode } from 'lucide-react';
 import { normalizeArabic } from '../utils/textUtils';
 
 
@@ -778,7 +778,40 @@ ${customerBlock}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="relative w-52">
+            <div
+              className="relative w-64 group"
+              style={{
+                '--scan-color': storeSettings.themeColor,
+                '--scan-soft': storeSettings.themeColor + '14',
+                '--scan-border': storeSettings.themeColor + '45'
+              } as any}
+            >
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-xl bg-[var(--scan-soft)] text-[var(--scan-color)] flex items-center justify-center border border-[var(--scan-border)] shadow-sm">
+                <ScanBarcode size={20} strokeWidth={2.5} />
+              </div>
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1">
+                {barcodeScanInput && (
+                  <button
+                    type="button"
+                    onClick={() => setBarcodeScanInput('')}
+                    className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition"
+                    title="مسح الباركود"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleBarcodeSaleScan()}
+                  className="h-7 px-2 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black tracking-wide shadow-sm hover:scale-105 transition"
+                  title="إضافة المنتج بالباركود"
+                >
+                  Enter
+                </button>
+              </div>
+              <div className="absolute -top-2.5 right-5 z-20 px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-[var(--scan-border)] text-[9px] font-black text-[var(--scan-color)] tracking-[0.16em]">
+                SCAN
+              </div>
               <input
                 type="text"
                 dir="ltr"
@@ -790,9 +823,8 @@ ${customerBlock}
                     handleBarcodeSaleScan();
                   }
                 }}
-                placeholder="Scan barcode"
-                className="w-full bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl py-3.5 px-4 text-sm font-mono text-left focus:outline-none focus:ring-2 shadow-sm transition"
-                style={{ '--tw-ring-color': storeSettings.themeColor + '40' } as any}
+                placeholder="قارئ الباركود..."
+                className="w-full h-[58px] bg-white dark:bg-slate-800 dark:text-white border-2 border-[var(--scan-border)] rounded-[22px] py-3 pr-14 pl-20 text-sm font-mono text-left focus:outline-none focus:ring-4 focus:ring-[var(--scan-soft)] shadow-[0_10px_30px_rgba(15,23,42,0.08)] transition placeholder:text-slate-400"
               />
             </div>
             <button onClick={() => setShowReturnsModal(true)} className="flex items-center gap-2 px-5 py-3.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 rounded-2xl font-bold transition border border-red-100 dark:border-red-900/30 whitespace-nowrap shadow-sm">
