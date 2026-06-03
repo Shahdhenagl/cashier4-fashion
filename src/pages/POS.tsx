@@ -101,6 +101,11 @@ export default function POS() {
         const cashRefund = returnCashAmounts[productId] !== undefined
           ? parseFloat(returnCashAmounts[productId] || '0') || 0
           : defaultCashRefund;
+
+        if (!confirm(`تأكيد إرجاع "${item.name}"؟\nالكمية: ${qty}\nالمبلغ الكاش: ${cashRefund.toFixed(2)} ${storeSettings.currency}`)) {
+          return;
+        }
+
         const success = await processReturn(activeReturnOrder.id, productId, qty, cashRefund);
         if (success) {
           alert('تم استرجاع المنتجات بنجاح وإعادتها للمخزون');
@@ -113,6 +118,45 @@ export default function POS() {
         }
       }
     }
+  };
+
+  const handleReturnFullInvoice = async () => {
+    if (!activeReturnOrder) return;
+
+    const invoiceItemsTotal = activeReturnOrder.items.reduce((sum: number, item: any) => sum + (item.quantity * item.sale_price), 0);
+    const discountRatio = invoiceItemsTotal > 0 ? activeReturnOrder.total / invoiceItemsTotal : 1;
+    const returnableItems = activeReturnOrder.items
+      .map((item: any) => {
+        const availableQty = item.quantity - item.returned_quantity;
+        const cashRefund = item.sale_price * availableQty * discountRatio;
+        return { item, availableQty, cashRefund };
+      })
+      .filter((entry: any) => entry.availableQty > 0);
+
+    if (returnableItems.length === 0) {
+      alert('لا توجد أصناف متاحة للإرجاع في هذه الفاتورة.');
+      return;
+    }
+
+    const totalCashRefund = returnableItems.reduce((sum: number, entry: any) => sum + entry.cashRefund, 0);
+    const totalQty = returnableItems.reduce((sum: number, entry: any) => sum + entry.availableQty, 0);
+
+    if (!confirm(`تأكيد إرجاع الفاتورة بالكامل؟\nعدد الأصناف: ${returnableItems.length}\nإجمالي الكمية: ${totalQty}\nالمبلغ الكاش المتوقع: ${totalCashRefund.toFixed(2)} ${storeSettings.currency}`)) {
+      return;
+    }
+
+    let allSucceeded = true;
+    for (const { item, availableQty, cashRefund } of returnableItems) {
+      const success = await processReturn(activeReturnOrder.id, item.id, availableQty, cashRefund);
+      if (!success) allSucceeded = false;
+    }
+
+    const updatedOrder = useStore.getState().orders.find(o => o.id === activeReturnOrder.id);
+    setActiveReturnOrder(updatedOrder);
+    setReturnQuantities({});
+    setReturnCashAmounts({});
+
+    alert(allSucceeded ? 'تم إرجاع الفاتورة بالكامل بنجاح.' : 'تم إرجاع بعض الأصناف، وحدثت مشكلة في أصناف أخرى.');
   };
 
   const printInvoice = (invId: string, orderDetails: any) => {
@@ -584,6 +628,7 @@ ${customerBlock}
                   const savedCashRefund = item.return_cash_amount ?? 0;
                   return sum + (savedCashRefund > 0 ? savedCashRefund : item.returned_quantity * item.sale_price * discountRatio);
                 }, 0);
+                const returnableItemsCount = activeReturnOrder.items.filter((item: any) => item.quantity > item.returned_quantity).length;
                 const cashRefund = totalReturnedValue;
                 const debtReduction = 0;
                 
@@ -646,8 +691,17 @@ ${customerBlock}
 
                     <div className="flex-1 border border-gray-200 dark:border-slate-700 flex flex-col rounded-xl overflow-hidden">
                       <div className="bg-gray-100 dark:bg-slate-700 p-4 flex justify-between items-center border-b border-gray-200 dark:border-slate-600">
-                        <span className="font-bold text-gray-700 dark:text-gray-200 font-mono tracking-wider">الأصناف المتاحة للإرجاع</span>
-                        <span className="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600">رقم الفاتورة: #{activeReturnOrder.id}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-gray-700 dark:text-gray-200 font-mono tracking-wider">الأصناف المتاحة للإرجاع</span>
+                          <span className="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600">رقم الفاتورة: #{activeReturnOrder.id}</span>
+                        </div>
+                        <button
+                          onClick={handleReturnFullInvoice}
+                          disabled={returnableItemsCount === 0}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-black disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+                        >
+                          إرجاع الفاتورة بالكامل
+                        </button>
                       </div>
                       <div className="p-4 space-y-3 max-h-72 overflow-y-auto hide-scrollbar">
                         {activeReturnOrder.items.map((item: any) => {
