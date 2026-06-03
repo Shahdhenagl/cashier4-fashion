@@ -612,18 +612,18 @@ ${customerBlock}
       )}
       
       {showReturnsModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col border border-gray-200 dark:border-slate-700">
-            <div className="p-6 bg-gradient-to-r from-red-500 to-orange-500 text-white flex justify-between items-center">
-              <h2 className="text-xl font-bold flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-2 sm:p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col border border-gray-200 dark:border-slate-700">
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-red-500 to-orange-500 text-white flex justify-between items-center shrink-0">
+              <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                 <ArrowRightLeft size={24} /> نظام المرتجعات
               </h2>
               <button onClick={() => setShowReturnsModal(false)} className="hover:bg-white/20 p-2 rounded-full transition">
                 <X size={24} />
               </button>
             </div>
-            <div className="p-6 flex-1 flex flex-col gap-4">
-              <div className="flex gap-2">
+            <div className="p-4 sm:p-6 flex-1 min-h-0 overflow-y-auto flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input 
                   type="text" 
                   placeholder="أدخل رقم الفاتورة للبحث..." 
@@ -632,7 +632,7 @@ ${customerBlock}
                   value={returnSearchQuery}
                   onChange={(e) => setReturnSearchQuery(e.target.value)}
                 />
-                <button onClick={handleSearchOrder} className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shrink-0">بحث برقم الفاتورة</button>
+                <button onClick={handleSearchOrder} className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shrink-0 w-full sm:w-auto">بحث برقم الفاتورة</button>
               </div>
 
               {activeReturnOrder && (() => {
@@ -651,7 +651,7 @@ ${customerBlock}
                 return (
                   <>
                     {/* Financial Summary Card */}
-                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
                       <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">إجمالي الفاتورة</span>
                         <span className="text-sm font-black text-slate-800 dark:text-slate-200">{activeReturnOrder.total.toFixed(2)} {storeSettings.currency}</span>
@@ -670,7 +670,7 @@ ${customerBlock}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                       <div className="bg-white dark:bg-slate-900/40 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">إجمالي الأصناف قبل الخصم</span>
                         <div className="font-black text-slate-800 dark:text-slate-100">{invoiceItemsTotal.toFixed(2)} {storeSettings.currency}</div>
@@ -690,12 +690,12 @@ ${customerBlock}
                         </div>
                       )}
                       {cashRefund > 0 ? (
-                        <div className="bg-emerald-500 text-white p-4 rounded-xl shadow-lg shadow-emerald-200 dark:shadow-none flex justify-between items-center animate-pulse">
+                        <div className="bg-emerald-500 text-white p-3 sm:p-4 rounded-xl shadow-lg shadow-emerald-200 dark:shadow-none flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center animate-pulse">
                           <div className="flex items-center gap-3">
                             <div className="bg-white/20 p-2 rounded-lg"><Banknote size={24} /></div>
-                            <span className="font-black text-lg">المبلغ المستحق رده (كاش):</span>
+                            <span className="font-black text-base sm:text-lg">المبلغ المستحق رده (كاش):</span>
                           </div>
-                          <span className="text-2xl font-black">{cashRefund.toFixed(2)} {storeSettings.currency}</span>
+                          <span className="text-xl sm:text-2xl font-black">{cashRefund.toFixed(2)} {storeSettings.currency}</span>
                         </div>
                       ) : initialDebt > 0 && (
                         <div className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 p-3 rounded-xl border border-orange-100 dark:border-orange-800/50 flex justify-between items-center text-sm italic">
@@ -705,21 +705,21 @@ ${customerBlock}
                       )}
                     </div>
 
-                    <div className="flex-1 border border-gray-200 dark:border-slate-700 flex flex-col rounded-xl overflow-hidden">
-                      <div className="bg-gray-100 dark:bg-slate-700 p-4 flex justify-between items-center border-b border-gray-200 dark:border-slate-600">
-                        <div className="flex items-center gap-3">
+                    <div className="flex-1 min-h-0 border border-gray-200 dark:border-slate-700 flex flex-col rounded-xl overflow-hidden">
+                      <div className="bg-gray-100 dark:bg-slate-700 p-3 sm:p-4 flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center border-b border-gray-200 dark:border-slate-600">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                           <span className="font-bold text-gray-700 dark:text-gray-200 font-mono tracking-wider">الأصناف المتاحة للإرجاع</span>
                           <span className="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-600">رقم الفاتورة: #{activeReturnOrder.id}</span>
                         </div>
                         <button
                           onClick={handleReturnFullInvoice}
                           disabled={returnableItemsCount === 0}
-                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-black disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-black disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm w-full sm:w-auto"
                         >
                           إرجاع الفاتورة بالكامل
                         </button>
                       </div>
-                      <div className="p-4 space-y-3 max-h-72 overflow-y-auto hide-scrollbar">
+                      <div className="p-3 sm:p-4 space-y-3 max-h-[42dvh] overflow-y-auto hide-scrollbar">
                         {activeReturnOrder.items.map((item: any) => {
                           const availableQty = item.quantity - item.returned_quantity;
                           const selectedQty = Math.min(Math.max(parseInt(returnQuantities[item.id] || '1', 10) || 1, 1), Math.max(availableQty, 1));
@@ -728,8 +728,8 @@ ${customerBlock}
                           const netReturn = grossReturn - itemDiscount;
                           const cashValue = returnCashAmounts[item.id] !== undefined ? returnCashAmounts[item.id] : netReturn.toFixed(2);
                           return (
-                          <div key={item.id} className="flex flex-col gap-3 p-4 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-600 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex justify-between items-start gap-3">
+                          <div key={item.id} className="flex flex-col gap-3 p-3 sm:p-4 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-600 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
                             <div className="flex flex-col">
                               <span className="font-bold text-md text-gray-800 dark:text-gray-100">{item.name}</span>
                               <span className="text-sm text-gray-500 dark:text-gray-400 mt-1">الكمية المسجلة: {item.quantity} | المسترجع: <span className="text-red-500 font-bold">{item.returned_quantity}</span></span>
@@ -738,11 +738,11 @@ ${customerBlock}
                             <button 
                               disabled={item.quantity === item.returned_quantity}
                               onClick={() => handleReturnItem(item.id)} 
-                              className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition border border-red-100 dark:border-red-900/50"
+                              className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 px-5 py-2.5 rounded-xl text-sm font-bold disabled:opacity-50 transition border border-red-100 dark:border-red-900/50 w-full sm:w-auto"
                             >إرجاع</button>
                             </div>
 
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2 text-xs">
                               <div className="rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 p-2">
                                 <span className="block text-slate-500 font-bold mb-1">كمية الإرجاع</span>
                                 <input
