@@ -37,6 +37,38 @@ export default function POS() {
   const [cameraScanError, setCameraScanError] = useState('');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastCameraScanRef = useRef({ barcode: '', time: 0 });
+  const lastAddTimeRef = useRef<number>(0);
+  const ADD_COOLDOWN_MS = 2000; // منع الإضافة المتكررة خلال 2 ثانية
+
+  const playBeep = () => {
+    try {
+      const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 880; // تردد النغمة
+      g.gain.value = 0.05; // مستوى الصوت منخفض
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      setTimeout(() => {
+        o.stop();
+        try { ctx.close(); } catch {}
+      }, 120);
+    } catch {
+      // تجاهل أي خطأ في تشغيل الصوت
+    }
+  };
+
+  const handleAddProduct = (product: any) => {
+    const now = Date.now();
+    if (now - lastAddTimeRef.current < ADD_COOLDOWN_MS) return;
+    lastAddTimeRef.current = now;
+    addToCart(product);
+    playBeep();
+  };
 
   useEffect(() => {
     if (isDarkMode) {
@@ -382,7 +414,7 @@ ${customerBlock}
       return;
     }
 
-    addToCart(product);
+    handleAddProduct(product);
     setBarcodeScanInput('');
     setSearchQuery('');
     setActiveCategory('all');
@@ -677,8 +709,8 @@ ${customerBlock}
       )}
       
       {showReturnsModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-stretch sm:items-start justify-center overflow-hidden sm:overflow-y-auto p-0 sm:p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-3xl shadow-2xl w-full max-w-4xl h-[100svh] sm:h-auto sm:max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col border border-gray-200 dark:border-slate-700">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-stretch sm:items-start justify-center overflow-y-auto p-2 sm:p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-none sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[100vh] sm:max-h-[calc(100vh-2rem)] flex flex-col border border-gray-200 dark:border-slate-700">
             <div className="p-4 sm:p-6 bg-gradient-to-r from-red-500 to-orange-500 text-white flex justify-between items-center shrink-0 sticky top-0 z-10">
               <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
                 <ArrowRightLeft size={24} /> نظام المرتجعات
@@ -1052,7 +1084,7 @@ ${customerBlock}
               return (
                 <div
                   key={product.id}
-                  onClick={() => addToCart(product)}
+                  onClick={() => handleAddProduct(product)}
                   className={`bg-white dark:bg-slate-800 p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm hover:shadow-xl cursor-pointer transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between h-40 sm:h-48 border border-gray-100 dark:border-slate-700 ring-1 ring-black/5 dark:ring-white/5 relative overflow-hidden group ${isOutOfStock ? 'opacity-60 cursor-not-allowed grayscale' : ''}`}
                 >
                   <div className={`absolute top-0 right-0 rounded-bl-2xl sm:rounded-bl-3xl rounded-tr-xl px-2.5 sm:px-4 py-1 sm:py-1.5 text-[10px] sm:text-xs font-bold text-white shadow-sm transition-colors ${isOutOfStock ? 'bg-slate-500' : isLowStock ? 'bg-red-500' : 'bg-green-500 dark:bg-green-600 group-hover:bg-green-600'}`}>
