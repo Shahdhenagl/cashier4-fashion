@@ -358,14 +358,16 @@ ${customerBlock}
       (p.name.includes(searchQuery) || p.barcode.includes(searchQuery.trim()))
   );
 
-  const handleBarcodeSaleScan = (rawBarcode = barcodeScanInput) => {
+  const handleBarcodeSaleScan = (rawBarcode = barcodeScanInput, showMissingAlert = true) => {
     const barcode = rawBarcode.trim();
     if (!barcode) return;
 
     const product = products.find((p) => p.barcode.trim() === barcode);
     if (!product) {
-      alert(`لم يتم العثور على منتج بالباركود: ${barcode}`);
-      setBarcodeScanInput('');
+      if (showMissingAlert) {
+        alert(`لم يتم العثور على منتج بالباركود: ${barcode}`);
+        setBarcodeScanInput('');
+      }
       return;
     }
 
@@ -380,6 +382,20 @@ ${customerBlock}
     setSearchQuery('');
     setActiveCategory('all');
   };
+
+  useEffect(() => {
+    const barcode = barcodeScanInput.trim();
+    if (!barcode) return;
+
+    const exactProduct = products.find((p) => p.barcode.trim() === barcode);
+    if (!exactProduct) return;
+
+    const timer = window.setTimeout(() => {
+      handleBarcodeSaleScan(barcode, false);
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [barcodeScanInput, products]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.sale_price * item.quantity, 0);
   const discount = Math.min(parseFloat(discountStr) || 0, subtotal);
