@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode, Camera } from 'lucide-react';
+import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { normalizeArabic } from '../utils/textUtils';
 
 
@@ -404,54 +405,49 @@ ${customerBlock}
   useEffect(() => {
     if (!showCameraScanner) return;
 
-    let stream: MediaStream | null = null;
-    let frameId = 0;
+    let controls: IScannerControls | null = null;
     let stopped = false;
 
     const startCameraScan = async () => {
       setCameraScanError('');
-      const BarcodeDetectorCtor = (window as any).BarcodeDetector;
 
-      if (!navigator.mediaDevices?.getUserMedia || !BarcodeDetectorCtor) {
-        setCameraScanError('المتصفح لا يدعم scan بالكاميرا. استخدم Chrome على Android أو اكتب الباركود يدويًا.');
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraScanError('المتصفح لا يسمح بفتح الكاميرا. افتح الموقع من HTTPS واسمح باستخدام الكاميرا.');
         return;
       }
 
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false
-        });
-
         if (!videoRef.current || stopped) return;
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
 
-        const detector = new BarcodeDetectorCtor({
-          formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'qr_code']
-        });
+        const reader = new BrowserMultiFormatReader();
+        controls = await reader.decodeFromConstraints(
+          {
+            video: { facingMode: { ideal: 'environment' } },
+            audio: false
+          },
+          videoRef.current,
+          (result) => {
+            if (stopped || !result) return;
 
-        const detect = async () => {
-          if (stopped || !videoRef.current) return;
-
-          try {
-            const codes = await detector.detect(videoRef.current);
-            const barcode = codes?.[0]?.rawValue?.trim();
+            const barcode = result.getText().trim();
             const now = Date.now();
 
             if (barcode && (lastCameraScanRef.current.barcode !== barcode || now - lastCameraScanRef.current.time > 1200)) {
               lastCameraScanRef.current = { barcode, time: now };
+              const product = products.find((p) => p.barcode.trim() === barcode);
+
+              if (!product) {
+                setBarcodeScanInput(barcode);
+                setCameraScanError(`تم قراءة ${barcode} لكن لا يوجد منتج محفوظ بهذا الباركود.`);
+                return;
+              }
+
+              setCameraScanError('');
               setBarcodeScanInput(barcode);
               handleBarcodeSaleScan(barcode);
             }
-          } catch {
-            // Keep scanning; transient camera frames can fail on some mobile browsers.
           }
-
-          frameId = window.requestAnimationFrame(detect);
-        };
-
-        detect();
+        );
       } catch {
         setCameraScanError('لم أستطع فتح الكاميرا. تأكد من السماح للمتصفح باستخدام الكاميرا.');
       }
@@ -461,8 +457,7 @@ ${customerBlock}
 
     return () => {
       stopped = true;
-      if (frameId) window.cancelAnimationFrame(frameId);
-      stream?.getTracks().forEach((track) => track.stop());
+      controls?.stop();
       if (videoRef.current) videoRef.current.srcObject = null;
     };
   }, [showCameraScanner, products]);
