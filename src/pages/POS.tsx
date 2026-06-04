@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode, Camera, Box, Check } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode, Camera, Box, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { normalizeArabic } from '../utils/textUtils';
 
@@ -40,6 +40,7 @@ export default function POS() {
   const [scanQty, setScanQty] = useState(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const categoryTabsRef = useRef<HTMLDivElement | null>(null);
   const lastCameraScanRef = useRef({ barcode: '', time: 0 });
   const lastAddTimeRef = useRef<number>(0);
   const ADD_COOLDOWN_MS = 2000; // منع الإضافة المتكررة خلال 2 ثانية
@@ -107,6 +108,13 @@ export default function POS() {
     if (showCameraScanner) {
       closeCameraScanner();
     }
+  };
+
+  const scrollCategories = (direction: 'left' | 'right') => {
+    categoryTabsRef.current?.scrollBy({
+      left: direction === 'left' ? -260 : 260,
+      behavior: 'smooth'
+    });
   };
 
   useEffect(() => {
@@ -1127,32 +1135,51 @@ ${customerBlock}
         </header>
 
         {/* Categories Tabs */}
-        <div className="flex gap-2 sm:gap-3 p-3 sm:p-5 overflow-x-auto border-b border-gray-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 hide-scrollbar items-center">
+        <div className="relative border-b border-gray-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
           <button
-            onClick={() => setActiveCategory('all')}
-            style={activeCategory === 'all' ? { background: storeSettings.themeColor } : {}}
-            className={`px-4 sm:px-6 py-2.5 rounded-2xl whitespace-nowrap font-bold transition shadow-sm border ${
-              activeCategory === 'all' 
-              ? 'text-white border-transparent' 
-              : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
-            }`}
+            type="button"
+            onClick={() => scrollCategories('right')}
+            className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-lg items-center justify-center hover:scale-105 transition"
+            title="تمرير يمين"
           >
-            الكل
+            <ChevronRight size={18} />
           </button>
-          {categories.map((c) => (
+          <button
+            type="button"
+            onClick={() => scrollCategories('left')}
+            className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-lg items-center justify-center hover:scale-105 transition"
+            title="تمرير شمال"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <div ref={categoryTabsRef} className="flex gap-2 sm:gap-3 p-3 sm:p-5 md:px-14 overflow-x-auto hide-scrollbar items-center scroll-smooth">
             <button
-              key={c.id}
-              onClick={() => setActiveCategory(c.id)}
-              style={activeCategory === c.id ? { background: storeSettings.themeColor } : {}}
+              onClick={() => setActiveCategory('all')}
+              style={activeCategory === 'all' ? { background: storeSettings.themeColor } : {}}
               className={`px-4 sm:px-6 py-2.5 rounded-2xl whitespace-nowrap font-bold transition shadow-sm border ${
-                activeCategory === c.id 
-                ? 'text-white border-transparent' 
+                activeCategory === 'all'
+                ? 'text-white border-transparent'
                 : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
               }`}
             >
-              {c.name}
+              الكل
             </button>
-          ))}
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setActiveCategory(c.id)}
+                style={activeCategory === c.id ? { background: storeSettings.themeColor } : {}}
+                className={`px-4 sm:px-6 py-2.5 rounded-2xl whitespace-nowrap font-bold transition shadow-sm border ${
+                  activeCategory === c.id
+                  ? 'text-white border-transparent'
+                  : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Product Catalog Grid */}
@@ -1190,7 +1217,7 @@ ${customerBlock}
       </div>
 
       {/* Cart Sidebar */}
-      <div className={`w-full h-full pb-20 lg:pb-0 lg:w-1/3 lg:min-w-[420px] bg-white dark:bg-slate-800 flex-col z-20 shadow-2xl relative border-r border-gray-100 dark:border-slate-800 ${mobileView === 'catalog' ? 'hidden lg:flex' : 'flex'}`}>
+      <div className={`w-full h-full pb-20 lg:pb-0 lg:w-1/3 lg:min-w-[420px] bg-white dark:bg-slate-800 z-20 shadow-2xl relative border-r border-gray-100 dark:border-slate-800 grid grid-rows-[auto_minmax(0,1fr)_auto] lg:flex lg:flex-col ${mobileView === 'catalog' ? 'hidden lg:flex' : 'grid'}`}>
         <div
           style={{ 
             background: `linear-gradient(160deg, ${storeSettings.themeColor} 0%, ${storeSettings.themeColor}dd 100%)`,
@@ -1268,7 +1295,7 @@ ${customerBlock}
         </div>
 
         {/* Cart Listing */}
-        <div className="flex-1 overflow-y-auto max-h-[45vh] lg:max-h-none p-3 sm:p-5 space-y-3 sm:space-y-4 bg-slate-50 dark:bg-slate-900/50" style={{ scrollbarWidth: 'thin' }}>
+        <div className="min-h-0 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4 bg-slate-50 dark:bg-slate-900/50" style={{ scrollbarWidth: 'thin' }}>
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 transition-opacity opacity-70">
               <ShoppingCart size={72} className="mb-4 sm:mb-6 opacity-30 drop-shadow-md" />
@@ -1319,8 +1346,8 @@ ${customerBlock}
 
 
         {/* Footer Checkout */}
-        <div className="p-3 sm:p-6 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 z-10">
-          <div className="space-y-3 mb-4 bg-slate-50 dark:bg-slate-900/50 p-3 sm:p-5 rounded-2xl border border-gray-100 dark:border-slate-700">
+        <div className="shrink-0 max-h-[38dvh] lg:max-h-none overflow-y-auto lg:overflow-visible p-2 sm:p-6 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 z-10">
+          <div className="space-y-2 sm:space-y-3 mb-2 sm:mb-4 bg-slate-50 dark:bg-slate-900/50 p-2.5 sm:p-5 rounded-2xl border border-gray-100 dark:border-slate-700">
             <div className="flex justify-between text-gray-500 dark:text-gray-400 font-semibold text-sm">
                <span>المجموع الفرعي</span>
               <span>{subtotal.toFixed(2)} {storeSettings.currency}</span>
@@ -1351,14 +1378,14 @@ ${customerBlock}
                 <span>{tax.toFixed(2)} {storeSettings.currency}</span>
               </div>
             )}
-            <div className="flex justify-between text-2xl sm:text-3xl font-black text-gray-800 dark:text-gray-100 pt-2 border-b border-gray-200 dark:border-slate-700 pb-4">
+            <div className="flex justify-between text-xl sm:text-3xl font-black text-gray-800 dark:text-gray-100 pt-1 sm:pt-2 border-b border-gray-200 dark:border-slate-700 pb-2 sm:pb-4">
               <span>الإجمالي</span>
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
                 {total.toFixed(2)} <span className="text-lg text-gray-500 dark:text-gray-400 font-bold">{storeSettings.currency}</span>
               </span>
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center justify-between pt-2">
+            <div className="flex flex-row gap-2 sm:gap-4 items-center justify-between pt-1 sm:pt-2">
               <div className="flex-1">
                 <label className="text-xs text-slate-500 mb-1 block font-bold">المدفوع</label>
                 <input 
@@ -1367,12 +1394,12 @@ ${customerBlock}
                   value={paidAmountStr}
                   onChange={(e) => setPaidAmountStr(e.target.value)}
                   placeholder={total.toFixed(2)}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 py-2 px-3 rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-lg focus:outline-none transition text-left" 
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 py-1.5 sm:py-2 px-3 rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-base sm:text-lg focus:outline-none transition text-left" 
                 />
               </div>
               <div className="flex-1 text-left">
                 <label className="text-xs text-slate-500 mb-1 block font-bold text-left">{remaining > 0 ? 'متبقي للعميل (آجل)' : 'الباقي للعميل'}</label>
-                <div className={`text-xl font-bold ${remaining > 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+                <div className={`text-lg sm:text-xl font-bold ${remaining > 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
                   {Math.abs(remaining).toFixed(2)} <span className="text-sm font-normal">{storeSettings.currency}</span>
                 </div>
               </div>
@@ -1380,7 +1407,7 @@ ${customerBlock}
           </div>
 
           <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-row gap-2">
               <button
                 onClick={() => {
                   setCheckoutShouldPrint(false);
@@ -1388,7 +1415,7 @@ ${customerBlock}
                 }}
                 disabled={cart.length === 0}
                 style={cart.length > 0 ? { background: storeSettings.themeColor } : {}}
-                className="flex-1 disabled:bg-gray-300 dark:disabled:bg-slate-700 disabled:text-gray-500 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:shadow-none text-base"
+                className="flex-1 disabled:bg-gray-300 dark:disabled:bg-slate-700 disabled:text-gray-500 text-white py-3 sm:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:shadow-none text-sm sm:text-base"
               >
                 <Banknote size={22} />
                 تحصيل ودفع
@@ -1399,13 +1426,13 @@ ${customerBlock}
                   setIsPaymentMethodModalOpen(true);
                 }}
                 disabled={cart.length === 0}
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-slate-700 dark:disabled:to-slate-700 disabled:text-gray-500 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none text-base border border-transparent"
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-slate-700 dark:disabled:to-slate-700 disabled:text-gray-500 text-white py-3 sm:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none text-sm sm:text-base border border-transparent"
               >
                 <Printer size={22} />
                 دفع وطباعة
               </button>
             </div>
-            <button onClick={clearCart} disabled={cart.length === 0} className="w-full border-2 border-gray-100 dark:border-slate-700 text-gray-500 dark:text-gray-400 disabled:opacity-50 py-3 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 hover:border-red-100 dark:hover:border-red-900/30 transition-all">
+            <button onClick={clearCart} disabled={cart.length === 0} className="w-full border-2 border-gray-100 dark:border-slate-700 text-gray-500 dark:text-gray-400 disabled:opacity-50 py-2 sm:py-3 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 hover:border-red-100 dark:hover:border-red-900/30 transition-all">
               إلغاء الطلب والتفريغ
             </button>
           </div>
