@@ -67,12 +67,62 @@ export default function POS() {
     }
   };
 
+  const playScanSuccessSound = () => {
+    try {
+      const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(800, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+      g.gain.setValueAtTime(0, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.04);
+      g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.22);
+      setTimeout(() => {
+        try { ctx.close(); } catch {}
+      }, 260);
+    } catch {
+      // تجاهل أي خطأ في تشغيل الصوت
+    }
+  };
+
+  const playScanErrorSound = () => {
+    try {
+      const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(300, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.18);
+      g.gain.setValueAtTime(0, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.04);
+      g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.28);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + 0.28);
+      setTimeout(() => {
+        try { ctx.close(); } catch {}
+      }, 320);
+    } catch {
+      // تجاهل أي خطأ في تشغيل الصوت
+    }
+  };
+
   const handleAddProduct = (product: any) => {
     const now = Date.now();
     if (now - lastAddTimeRef.current < ADD_COOLDOWN_MS) return;
     lastAddTimeRef.current = now;
     addToCart(product);
-    playBeep();
+    playScanSuccessSound();
   };
 
   const openScannedProductCard = (product: any) => {
@@ -448,6 +498,7 @@ ${customerBlock}
 
     const product = products.find((p) => p.barcode.trim() === barcode);
     if (!product) {
+      playScanErrorSound();
       if (showMissingAlert) {
         alert(`لم يتم العثور على منتج بالباركود: ${barcode}`);
         setBarcodeScanInput('');
@@ -456,6 +507,7 @@ ${customerBlock}
     }
 
     if (product.stock_quantity <= 0) {
+      playScanErrorSound();
       alert(`المنتج "${product.name}" غير متوفر في المخزون.`);
       setBarcodeScanInput('');
       return;
@@ -512,6 +564,7 @@ ${customerBlock}
               const product = products.find((p) => p.barcode.trim() === barcode);
 
               if (!product) {
+                playScanErrorSound();
                 setBarcodeScanInput(barcode);
                 setCameraScanError(`تم قراءة ${barcode} لكن لا يوجد منتج محفوظ بهذا الباركود.`);
                 return;
@@ -526,6 +579,7 @@ ${customerBlock}
         );
         scannerControlsRef.current = controls;
       } catch {
+        playScanErrorSound();
         setCameraScanError('لم أستطع فتح الكاميرا. تأكد من السماح للمتصفح باستخدام الكاميرا.');
       }
     };
@@ -1346,15 +1400,15 @@ ${customerBlock}
 
 
         {/* Footer Checkout */}
-        <div className="shrink-0 max-h-[38dvh] lg:max-h-none overflow-y-auto lg:overflow-visible p-2 sm:p-6 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 z-10">
-          <div className="space-y-2 sm:space-y-3 mb-2 sm:mb-4 bg-slate-50 dark:bg-slate-900/50 p-2.5 sm:p-5 rounded-2xl border border-gray-100 dark:border-slate-700">
+        <div className="shrink-0 max-h-[34dvh] lg:max-h-[36vh] overflow-y-auto p-2 sm:p-3 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-slate-700 z-10">
+          <div className="space-y-1.5 sm:space-y-2 mb-2 bg-slate-50 dark:bg-slate-900/50 p-2.5 sm:p-3 rounded-2xl border border-gray-100 dark:border-slate-700">
             <div className="flex justify-between text-gray-500 dark:text-gray-400 font-semibold text-sm">
                <span>المجموع الفرعي</span>
               <span>{subtotal.toFixed(2)} {storeSettings.currency}</span>
             </div>
 
             {/* Discount Row */}
-            <div className="flex gap-3 items-center pb-1">
+            <div className="flex gap-2 items-center">
               <label className="text-xs font-bold text-orange-500 whitespace-nowrap flex items-center gap-1">
                 🏷️ خصم
               </label>
@@ -1365,7 +1419,7 @@ ${customerBlock}
                 value={discountStr}
                 onChange={(e) => setDiscountStr(e.target.value)}
                 placeholder="0.00"
-                className="flex-1 bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-700 py-1.5 px-3 rounded-lg focus:ring-2 focus:ring-orange-400 font-bold text-sm focus:outline-none transition text-left placeholder-gray-300"
+                className="flex-1 bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-700 py-1 px-3 rounded-lg focus:ring-2 focus:ring-orange-400 font-bold text-sm focus:outline-none transition text-left placeholder-gray-300"
               />
               {discount > 0 && (
                 <span className="text-orange-500 font-black text-sm whitespace-nowrap">- {discount.toFixed(2)}</span>
@@ -1373,19 +1427,19 @@ ${customerBlock}
             </div>
 
             {storeSettings.taxRate > 0 && (
-              <div className="flex justify-between text-gray-500 dark:text-gray-400 font-semibold text-sm pb-4 border-b border-gray-200 dark:border-slate-700">
+              <div className="flex justify-between text-gray-500 dark:text-gray-400 font-semibold text-sm pb-2 border-b border-gray-200 dark:border-slate-700">
                 <span>الضريبة ({storeSettings.taxRate}%)</span>
                 <span>{tax.toFixed(2)} {storeSettings.currency}</span>
               </div>
             )}
-            <div className="flex justify-between text-xl sm:text-3xl font-black text-gray-800 dark:text-gray-100 pt-1 sm:pt-2 border-b border-gray-200 dark:border-slate-700 pb-2 sm:pb-4">
+            <div className="flex justify-between text-xl sm:text-2xl font-black text-gray-800 dark:text-gray-100 pt-1 border-b border-gray-200 dark:border-slate-700 pb-2">
               <span>الإجمالي</span>
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
                 {total.toFixed(2)} <span className="text-lg text-gray-500 dark:text-gray-400 font-bold">{storeSettings.currency}</span>
               </span>
             </div>
             
-            <div className="flex flex-row gap-2 sm:gap-4 items-center justify-between pt-1 sm:pt-2">
+            <div className="flex flex-row gap-2 sm:gap-3 items-center justify-between pt-1">
               <div className="flex-1">
                 <label className="text-xs text-slate-500 mb-1 block font-bold">المدفوع</label>
                 <input 
@@ -1394,19 +1448,19 @@ ${customerBlock}
                   value={paidAmountStr}
                   onChange={(e) => setPaidAmountStr(e.target.value)}
                   placeholder={total.toFixed(2)}
-                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 py-1.5 sm:py-2 px-3 rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-base sm:text-lg focus:outline-none transition text-left" 
+                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 py-1.5 px-3 rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-base focus:outline-none transition text-left" 
                 />
               </div>
               <div className="flex-1 text-left">
                 <label className="text-xs text-slate-500 mb-1 block font-bold text-left">{remaining > 0 ? 'متبقي للعميل (آجل)' : 'الباقي للعميل'}</label>
-                <div className={`text-lg sm:text-xl font-bold ${remaining > 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
+                <div className={`text-lg font-bold ${remaining > 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
                   {Math.abs(remaining).toFixed(2)} <span className="text-sm font-normal">{storeSettings.currency}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             <div className="flex flex-row gap-2">
               <button
                 onClick={() => {
@@ -1415,7 +1469,7 @@ ${customerBlock}
                 }}
                 disabled={cart.length === 0}
                 style={cart.length > 0 ? { background: storeSettings.themeColor } : {}}
-                className="flex-1 disabled:bg-gray-300 dark:disabled:bg-slate-700 disabled:text-gray-500 text-white py-3 sm:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:shadow-none text-sm sm:text-base"
+                className="flex-1 disabled:bg-gray-300 dark:disabled:bg-slate-700 disabled:text-gray-500 text-white py-2.5 sm:py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg disabled:shadow-none text-sm sm:text-base"
               >
                 <Banknote size={22} />
                 تحصيل ودفع
@@ -1426,13 +1480,13 @@ ${customerBlock}
                   setIsPaymentMethodModalOpen(true);
                 }}
                 disabled={cart.length === 0}
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-slate-700 dark:disabled:to-slate-700 disabled:text-gray-500 text-white py-3 sm:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none text-sm sm:text-base border border-transparent"
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-gray-300 disabled:to-gray-400 dark:disabled:from-slate-700 dark:disabled:to-slate-700 disabled:text-gray-500 text-white py-2.5 sm:py-3 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 disabled:shadow-none text-sm sm:text-base border border-transparent"
               >
                 <Printer size={22} />
                 دفع وطباعة
               </button>
             </div>
-            <button onClick={clearCart} disabled={cart.length === 0} className="w-full border-2 border-gray-100 dark:border-slate-700 text-gray-500 dark:text-gray-400 disabled:opacity-50 py-2 sm:py-3 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 hover:border-red-100 dark:hover:border-red-900/30 transition-all">
+            <button onClick={clearCart} disabled={cart.length === 0} className="w-full border-2 border-gray-100 dark:border-slate-700 text-gray-500 dark:text-gray-400 disabled:opacity-50 py-2 rounded-2xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 hover:border-red-100 dark:hover:border-red-900/30 transition-all">
               إلغاء الطلب والتفريغ
             </button>
           </div>
