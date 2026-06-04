@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode, Camera } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, Trash2, Banknote, RefreshCcw, Moon, Sun, ArrowRightLeft, X, Printer, User, CreditCard, Smartphone, Zap, ScanBarcode, Camera, Box, Check } from 'lucide-react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { normalizeArabic } from '../utils/textUtils';
 
@@ -33,9 +33,13 @@ export default function POS() {
   const [lastOrderDetails, setLastOrderDetails] = useState<any>(null);
   const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
   const [checkoutShouldPrint, setCheckoutShouldPrint] = useState(false);
+  const [mobileView, setMobileView] = useState<'catalog' | 'cart'>('catalog');
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [cameraScanError, setCameraScanError] = useState('');
+  const [scannedProduct, setScannedProduct] = useState<any>(null);
+  const [scanQty, setScanQty] = useState(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
   const lastCameraScanRef = useRef({ barcode: '', time: 0 });
   const lastAddTimeRef = useRef<number>(0);
   const ADD_COOLDOWN_MS = 2000; // منع الإضافة المتكررة خلال 2 ثانية
@@ -68,6 +72,41 @@ export default function POS() {
     lastAddTimeRef.current = now;
     addToCart(product);
     playBeep();
+  };
+
+  const openScannedProductCard = (product: any) => {
+    setScannedProduct(product);
+    setScanQty(1);
+    setCameraScanError('');
+    setBarcodeScanInput('');
+    setSearchQuery('');
+    setActiveCategory('all');
+    playBeep();
+  };
+
+  const closeCameraScanner = () => {
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setShowCameraScanner(false);
+    setCameraScanError('');
+  };
+
+  const handleConfirmScanAdd = () => {
+    if (!scannedProduct) return;
+    for (let i = 0; i < scanQty; i += 1) {
+      addToCart(scannedProduct);
+    }
+    setScannedProduct(null);
+    closeCameraScanner();
+    setMobileView('cart');
+  };
+
+  const handleSkipScannedProduct = () => {
+    setScannedProduct(null);
+    if (showCameraScanner) {
+      closeCameraScanner();
+    }
   };
 
   useEffect(() => {
@@ -414,15 +453,12 @@ ${customerBlock}
       return;
     }
 
-    handleAddProduct(product);
-    setBarcodeScanInput('');
-    setSearchQuery('');
-    setActiveCategory('all');
+    openScannedProductCard(product);
   };
 
   useEffect(() => {
     const barcode = barcodeScanInput.trim();
-    if (!barcode) return;
+    if (!barcode || scannedProduct) return;
 
     const exactProduct = products.find((p) => p.barcode.trim() === barcode);
     if (!exactProduct) return;
@@ -432,12 +468,11 @@ ${customerBlock}
     }, 120);
 
     return () => window.clearTimeout(timer);
-  }, [barcodeScanInput, products]);
+  }, [barcodeScanInput, products, scannedProduct]);
 
   useEffect(() => {
     if (!showCameraScanner) return;
 
-    let controls: IScannerControls | null = null;
     let stopped = false;
 
     const startCameraScan = async () => {
@@ -452,7 +487,7 @@ ${customerBlock}
         if (!videoRef.current || stopped) return;
 
         const reader = new BrowserMultiFormatReader();
-        controls = await reader.decodeFromConstraints(
+        const controls = await reader.decodeFromConstraints(
           {
             video: { facingMode: { ideal: 'environment' } },
             audio: false
@@ -475,11 +510,13 @@ ${customerBlock}
               }
 
               setCameraScanError('');
-              setBarcodeScanInput(barcode);
-              handleBarcodeSaleScan(barcode);
+              controls.stop();
+              scannerControlsRef.current = null;
+              openScannedProductCard(product);
             }
           }
         );
+        scannerControlsRef.current = controls;
       } catch {
         setCameraScanError('لم أستطع فتح الكاميرا. تأكد من السماح للمتصفح باستخدام الكاميرا.');
       }
@@ -489,7 +526,8 @@ ${customerBlock}
 
     return () => {
       stopped = true;
-      controls?.stop();
+      scannerControlsRef.current?.stop();
+      scannerControlsRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
     };
   }, [showCameraScanner, products]);
@@ -548,7 +586,7 @@ ${customerBlock}
 
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen lg:h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300 overflow-y-auto lg:overflow-hidden font-sans text-gray-900 dark:text-gray-100">
+    <div className="flex flex-col lg:flex-row h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300 overflow-hidden font-sans text-gray-900 dark:text-gray-100">
       
       {/* SUCCESS MODAL */}
       {showSuccessModal && (
@@ -906,7 +944,7 @@ ${customerBlock}
                 <Camera size={20} /> Scan barcode
               </div>
               <button
-                onClick={() => setShowCameraScanner(false)}
+                onClick={closeCameraScanner}
                 className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
               >
                 <X size={20} />
@@ -924,7 +962,7 @@ ${customerBlock}
                 </div>
               ) : (
                 <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40 p-3 text-sm font-bold text-emerald-700 dark:text-emerald-300">
-                  وجه الكاميرا على الباركود، والمنتج هيتضاف تلقائيًا للفاتورة.
+                  وجه الكاميرا على الباركود، وبعد القراءة اختار الكمية قبل الإضافة.
                 </div>
               )}
             </div>
@@ -932,8 +970,51 @@ ${customerBlock}
         </div>
       )}
 
+      {scannedProduct && (
+        <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-3 bg-slate-950/50 backdrop-blur-sm" dir="rtl">
+          <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-white/20 overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
+            <div className="p-5 border-b border-gray-100 dark:border-slate-700 flex items-start gap-4">
+              <div className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-300 p-3 rounded-2xl shrink-0">
+                <Check size={24} strokeWidth={3} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-black text-lg text-slate-800 dark:text-white leading-tight line-clamp-2">{scannedProduct.name}</h3>
+                <p className="text-sm text-slate-400 font-mono mt-1" dir="ltr">{scannedProduct.barcode}</p>
+                <p className="text-emerald-600 dark:text-emerald-300 font-black mt-2">
+                  {scannedProduct.sale_price} <span className="text-xs text-slate-500">{storeSettings.currency}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <div className="flex items-center gap-4">
+                <span className="font-bold text-slate-600 dark:text-slate-300">الكمية</span>
+                <div className="flex flex-1 items-center bg-slate-50 dark:bg-slate-700 rounded-2xl p-1 border border-slate-200 dark:border-slate-600 shadow-inner">
+                  <button onClick={() => setScanQty(Math.max(1, scanQty - 1))} className="p-3 hover:bg-white dark:hover:bg-slate-600 rounded-xl text-slate-600 dark:text-slate-300 shadow-sm transition">
+                    <Minus size={18} strokeWidth={3} />
+                  </button>
+                  <span className="flex-1 text-center font-black text-2xl dark:text-white">{scanQty}</span>
+                  <button onClick={() => setScanQty(scanQty + 1)} className="p-3 hover:bg-white dark:hover:bg-slate-600 rounded-xl text-slate-600 dark:text-slate-300 shadow-sm transition">
+                    <Plus size={18} strokeWidth={3} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={handleConfirmScanAdd} style={{ background: storeSettings.themeColor }} className="flex-1 text-white font-black py-4 rounded-2xl shadow-lg transition active:scale-95">
+                  إضافة للفاتورة
+                </button>
+                <button onClick={handleSkipScannedProduct} className="px-6 py-4 rounded-2xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition">
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-[58vh] lg:h-full bg-white dark:bg-slate-900 shadow-2xl z-10 w-full lg:w-2/3">
+      <div className={`flex-1 flex-col h-full pb-20 lg:pb-0 bg-white dark:bg-slate-900 shadow-2xl z-10 w-full lg:w-2/3 ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
         <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 p-3 sm:p-5 border-b border-gray-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-30 lg:static">
           <div className="flex items-center gap-3 sm:gap-4">
             <img src={storeSettings.logo} alt="Logo" className="w-12 h-12 object-cover rounded-xl shadow-md border border-gray-100 dark:border-slate-700 bg-white p-1" />
@@ -1109,7 +1190,7 @@ ${customerBlock}
       </div>
 
       {/* Cart Sidebar */}
-      <div className="w-full lg:w-1/3 lg:min-w-[420px] bg-white dark:bg-slate-800 flex flex-col z-20 shadow-2xl relative border-r border-gray-100 dark:border-slate-800">
+      <div className={`w-full h-full pb-20 lg:pb-0 lg:w-1/3 lg:min-w-[420px] bg-white dark:bg-slate-800 flex-col z-20 shadow-2xl relative border-r border-gray-100 dark:border-slate-800 ${mobileView === 'catalog' ? 'hidden lg:flex' : 'flex'}`}>
         <div
           style={{ 
             background: `linear-gradient(160deg, ${storeSettings.themeColor} 0%, ${storeSettings.themeColor}dd 100%)`,
@@ -1329,6 +1410,38 @@ ${customerBlock}
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[140] bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 shadow-[0_-10px_30px_rgba(15,23,42,0.14)] px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-2" dir="rtl">
+        <button
+          onClick={() => setMobileView('catalog')}
+          className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all ${
+            mobileView === 'catalog'
+              ? 'text-white shadow-lg'
+              : 'text-slate-400 bg-slate-50 dark:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200'
+          }`}
+          style={mobileView === 'catalog' ? { background: storeSettings.themeColor } : {}}
+        >
+          <Box size={20} />
+          <span className="text-[11px] font-black">المنتجات</span>
+        </button>
+        <button
+          onClick={() => setMobileView('cart')}
+          className={`flex-1 h-14 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all relative ${
+            mobileView === 'cart'
+              ? 'text-white shadow-lg'
+              : 'text-slate-400 bg-slate-50 dark:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200'
+          }`}
+          style={mobileView === 'cart' ? { background: storeSettings.themeColor } : {}}
+        >
+          <ShoppingCart size={20} />
+          <span className="text-[11px] font-black">الفاتورة</span>
+          {cart.length > 0 && (
+            <span className="absolute top-1 right-[28%] min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-white dark:border-slate-900 shadow-md">
+              {cart.length}
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );
