@@ -36,57 +36,62 @@ export default function POS() {
   const [mobileView, setMobileView] = useState<'catalog' | 'cart'>('catalog');
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [cameraScanError, setCameraScanError] = useState('');
+  const [scanFeedback, setScanFeedback] = useState<'idle' | 'success' | 'error'>('idle');
   const [scannedProduct, setScannedProduct] = useState<any>(null);
   const [scanQty, setScanQty] = useState(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const scanAudioContextRef = useRef<any>(null);
   const categoryTabsRef = useRef<HTMLDivElement | null>(null);
   const lastCameraScanRef = useRef({ barcode: '', time: 0 });
   const lastAddTimeRef = useRef<number>(0);
   const ADD_COOLDOWN_MS = 2000; // منع الإضافة المتكررة خلال 2 ثانية
 
-  const playBeep = () => {
+  const getScanAudioContext = () => {
     try {
       const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = 880; // تردد النغمة
-      g.gain.value = 0.05; // مستوى الصوت منخفض
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.start();
-      setTimeout(() => {
-        o.stop();
-        try { ctx.close(); } catch {}
-      }, 120);
+      if (!AudioContext) return null;
+      if (!scanAudioContextRef.current || scanAudioContextRef.current.state === 'closed') {
+        scanAudioContextRef.current = new AudioContext();
+      }
+      if (scanAudioContextRef.current.state === 'suspended') {
+        scanAudioContextRef.current.resume().catch(() => {});
+      }
+      return scanAudioContextRef.current;
     } catch {
-      // تجاهل أي خطأ في تشغيل الصوت
+      return null;
+    }
+  };
+
+  const unlockScanAudio = () => {
+    const ctx = getScanAudioContext();
+    if (!ctx) return;
+    try {
+      const silent = ctx.createBufferSource();
+      silent.buffer = ctx.createBuffer(1, 1, 22050);
+      silent.connect(ctx.destination);
+      silent.start(0);
+    } catch {
+      // تجاهل أي خطأ في تهيئة الصوت
     }
   };
 
   const playScanSuccessSound = () => {
     try {
-      const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
+      const ctx = getScanAudioContext();
+      if (!ctx) return;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = 'sine';
       o.frequency.setValueAtTime(800, ctx.currentTime);
       o.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
       g.gain.setValueAtTime(0, ctx.currentTime);
-      g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.04);
+      g.gain.linearRampToValueAtTime(0.45, ctx.currentTime + 0.04);
       g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.22);
       o.connect(g);
       g.connect(ctx.destination);
       o.start();
       o.stop(ctx.currentTime + 0.22);
-      setTimeout(() => {
-        try { ctx.close(); } catch {}
-      }, 260);
     } catch {
       // تجاهل أي خطأ في تشغيل الصوت
     }
@@ -94,27 +99,28 @@ export default function POS() {
 
   const playScanErrorSound = () => {
     try {
-      const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
+      const ctx = getScanAudioContext();
+      if (!ctx) return;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = 'sawtooth';
       o.frequency.setValueAtTime(300, ctx.currentTime);
       o.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.18);
       g.gain.setValueAtTime(0, ctx.currentTime);
-      g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.04);
+      g.gain.linearRampToValueAtTime(0.42, ctx.currentTime + 0.04);
       g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.28);
       o.connect(g);
       g.connect(ctx.destination);
       o.start();
       o.stop(ctx.currentTime + 0.28);
-      setTimeout(() => {
-        try { ctx.close(); } catch {}
-      }, 320);
     } catch {
       // تجاهل أي خطأ في تشغيل الصوت
     }
+  };
+
+  const triggerScanFeedback = (state: 'success' | 'error') => {
+    setScanFeedback(state);
+    window.setTimeout(() => setScanFeedback('idle'), 850);
   };
 
   const handleAddProduct = (product: any) => {
@@ -132,7 +138,8 @@ export default function POS() {
     setBarcodeScanInput('');
     setSearchQuery('');
     setActiveCategory('all');
-    playBeep();
+    playScanSuccessSound();
+    triggerScanFeedback('success');
   };
 
   const closeCameraScanner = () => {
@@ -141,6 +148,7 @@ export default function POS() {
     if (videoRef.current) videoRef.current.srcObject = null;
     setShowCameraScanner(false);
     setCameraScanError('');
+    setScanFeedback('idle');
   };
 
   const handleConfirmScanAdd = () => {
@@ -499,6 +507,7 @@ ${customerBlock}
     const product = products.find((p) => p.barcode.trim() === barcode);
     if (!product) {
       playScanErrorSound();
+      triggerScanFeedback('error');
       if (showMissingAlert) {
         alert(`لم يتم العثور على منتج بالباركود: ${barcode}`);
         setBarcodeScanInput('');
@@ -508,6 +517,7 @@ ${customerBlock}
 
     if (product.stock_quantity <= 0) {
       playScanErrorSound();
+      triggerScanFeedback('error');
       alert(`المنتج "${product.name}" غير متوفر في المخزون.`);
       setBarcodeScanInput('');
       return;
@@ -539,6 +549,8 @@ ${customerBlock}
       setCameraScanError('');
 
       if (!navigator.mediaDevices?.getUserMedia) {
+        playScanErrorSound();
+        triggerScanFeedback('error');
         setCameraScanError('المتصفح لا يسمح بفتح الكاميرا. افتح الموقع من HTTPS واسمح باستخدام الكاميرا.');
         return;
       }
@@ -565,6 +577,7 @@ ${customerBlock}
 
               if (!product) {
                 playScanErrorSound();
+                triggerScanFeedback('error');
                 setBarcodeScanInput(barcode);
                 setCameraScanError(`تم قراءة ${barcode} لكن لا يوجد منتج محفوظ بهذا الباركود.`);
                 return;
@@ -580,6 +593,7 @@ ${customerBlock}
         scannerControlsRef.current = controls;
       } catch {
         playScanErrorSound();
+        triggerScanFeedback('error');
         setCameraScanError('لم أستطع فتح الكاميرا. تأكد من السماح للمتصفح باستخدام الكاميرا.');
       }
     };
@@ -1017,6 +1031,19 @@ ${customerBlock}
                 <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
                 <div className="absolute inset-x-8 top-1/2 h-0.5 bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.9)]" />
                 <div className="absolute inset-8 border-2 border-white/80 rounded-2xl pointer-events-none" />
+                {scanFeedback !== 'idle' && (
+                  <div className={`absolute inset-0 flex items-center justify-center border-4 animate-pulse ${
+                    scanFeedback === 'success'
+                      ? 'bg-emerald-500/25 border-emerald-400'
+                      : 'bg-red-500/25 border-red-400'
+                  }`}>
+                    <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl ${
+                      scanFeedback === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+                    }`}>
+                      {scanFeedback === 'success' ? <Check size={52} strokeWidth={3} /> : <X size={52} strokeWidth={3} />}
+                    </div>
+                  </div>
+                )}
               </div>
               {cameraScanError ? (
                 <div className="rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/40 p-3 text-sm font-bold text-red-600 dark:text-red-300">
@@ -1154,7 +1181,10 @@ ${customerBlock}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowCameraScanner(true)}
+                  onClick={() => {
+                    unlockScanAudio();
+                    setShowCameraScanner(true);
+                  }}
                   className="sm:hidden w-8 h-8 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center shadow-sm"
                   title="Scan بالكاميرا"
                 >
@@ -1168,6 +1198,7 @@ ${customerBlock}
                 type="text"
                 dir="ltr"
                 value={barcodeScanInput}
+                onFocus={unlockScanAudio}
                 onChange={(e) => setBarcodeScanInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
