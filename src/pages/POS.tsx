@@ -1380,12 +1380,12 @@ ${customerBlock}
         </div>
 
         {/* Cart Listing */}
-        <div className="min-h-0 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4 bg-slate-50 dark:bg-slate-900/50" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4 bg-slate-50 dark:bg-slate-900/50" style={{ scrollbarWidth: 'thin' }}>
           {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 transition-opacity opacity-70">
-              <ShoppingCart size={72} className="mb-4 sm:mb-6 opacity-30 drop-shadow-md" />
-              <p className="text-xl sm:text-2xl font-semibold">السلة فارغة</p>
-              <p className="text-sm mt-2 opacity-70">أضف بعض المنتجات للبدء بحساب الفاتورة.</p>
+            <div className="h-full min-h-[130px] flex flex-col items-center justify-center text-gray-400 dark:text-gray-600 transition-opacity opacity-70 py-4">
+              <ShoppingCart size={52} className="mb-2 opacity-25 drop-shadow-md" />
+              <p className="text-lg font-semibold">السلة فارغة</p>
+              <p className="text-xs mt-1 opacity-70">أضف منتجات للبدء بحساب الفاتورة.</p>
             </div>
           ) : (
             cart.map((item) => (
@@ -1438,24 +1438,25 @@ ${customerBlock}
               <span>{subtotal.toFixed(2)} {storeSettings.currency}</span>
             </div>
 
-            {/* Discount Row */}
-            <div className="flex gap-2 items-center">
-              <label className="text-xs font-bold text-orange-500 whitespace-nowrap flex items-center gap-1">
-                🏷️ خصم
-              </label>
-              <input
-                type="number"
-                dir="ltr"
-                min="0"
-                value={discountStr}
-                onChange={(e) => setDiscountStr(e.target.value)}
-                placeholder="0.00"
-                className="flex-1 bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-700 py-1 px-3 rounded-lg focus:ring-2 focus:ring-orange-400 font-bold text-sm focus:outline-none transition text-left placeholder-gray-300"
-              />
-              {discount > 0 && (
-                <span className="text-orange-500 font-black text-sm whitespace-nowrap">- {discount.toFixed(2)}</span>
-              )}
-            </div>
+            {cart.length > 0 && (
+              <div className="flex gap-2 items-center">
+                <label className="text-xs font-bold text-orange-500 whitespace-nowrap flex items-center gap-1">
+                  🏷️ خصم
+                </label>
+                <input
+                  type="number"
+                  dir="ltr"
+                  min="0"
+                  value={discountStr}
+                  onChange={(e) => setDiscountStr(e.target.value)}
+                  placeholder="0.00"
+                  className="flex-1 bg-white dark:bg-slate-800 border border-orange-200 dark:border-orange-700 py-1 px-3 rounded-lg focus:ring-2 focus:ring-orange-400 font-bold text-sm focus:outline-none transition text-left placeholder-gray-300"
+                />
+                {discount > 0 && (
+                  <span className="text-orange-500 font-black text-sm whitespace-nowrap">- {discount.toFixed(2)}</span>
+                )}
+              </div>
+            )}
 
             {storeSettings.taxRate > 0 && (
               <div className="flex justify-between text-gray-500 dark:text-gray-400 font-semibold text-sm pb-2 border-b border-gray-200 dark:border-slate-700">

@@ -12,6 +12,7 @@ import DeferredAccounts from './pages/admin/DeferredAccounts';
 import Settings from './pages/admin/Settings';
 import Analytics from './pages/admin/Analytics';
 import Finance from './pages/admin/Finance';
+import Budget from './pages/admin/Budget';
 import { useStore } from './store/useStore';
 
 function ThemeInjector() {
@@ -128,6 +129,7 @@ function App() {
             <Route path="customers" element={<Customers />} />
             <Route path="deferred" element={<DeferredAccounts />} />
             <Route path="finance" element={<Finance />} />
+            <Route path="budget" element={<Budget />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
